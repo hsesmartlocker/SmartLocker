@@ -11,7 +11,7 @@ class UserType(SQLModel, table=True):
 
 class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    active: bool
+    active: bool = Field(default=True)
     name: str
     email: str
     phone: str
