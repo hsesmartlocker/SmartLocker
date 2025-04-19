@@ -17,7 +17,10 @@ class User(SQLModel, table=True):
     phone: Optional[str] = Field(default=None, nullable=True)
     created: Optional[datetime] = Field(default_factory=datetime.utcnow)
     card_id: Optional[str] = Field(default=None, nullable=True)
-    user_type: Optional[int] = Field(default=None, sa_column=Column(Integer, ForeignKey("usertype.id", ondelete='CASCADE')), nullable=True)
+    user_type: Optional[int] = Field(
+        default=None,
+        sa_column=Column(Integer, ForeignKey("usertype.id", ondelete='CASCADE'), nullable=True)
+    )
     email_verified: Optional[bool] = Field(default=False)
     telegram_id: Optional[int] = Field(default=None, nullable=True)
     password: str
