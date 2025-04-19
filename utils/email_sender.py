@@ -1,8 +1,8 @@
 import smtplib
 from email.mime.text import MIMEText
 
-EMAIL_FROM = "noreply-smartlocker@ya.ru"
-EMAIL_PASSWORD = "kizdoz-nyrbaX-8bopgu"
+EMAIL_FROM = "noreply-smartlocker@yandex.ru"
+EMAIL_PASSWORD = "rxfjyyycrgesjcus"
 
 def send_confirmation_email(to_email: str, code: str):
     msg = MIMEText(f"Ваш код подтверждения: {code}")
