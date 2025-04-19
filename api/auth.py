@@ -129,7 +129,11 @@ def confirm_code(data: ConfirmData, session: Session = Depends(get_session)):
     if user_exists:
         raise HTTPException(status_code=400, detail="Пользователь уже существует")
 
-    new_user = User(email=data.email, password=data.password, name=data.email.split('@')[0].capitalize())
+    new_user = User(
+        email=data.email,
+        password=data.password,
+        active=True
+    )
     session.add(new_user)
     session.delete(result)
     session.commit()

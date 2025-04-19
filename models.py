@@ -12,14 +12,14 @@ class UserType(SQLModel, table=True):
 class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     active: bool = Field(default=True)
-    name: str
+    name: Optional[str] = Field(default=None, nullable=True)
     email: str
-    phone: str
-    created: datetime
-    card_id: str
-    user_type: int = Field(sa_column=Column(Integer, ForeignKey("usertype.id", ondelete='CASCADE'), nullable=False))
-    email_verified: bool
-    telegram_id: int
+    phone: Optional[str] = Field(default=None, nullable=True)
+    created: Optional[datetime] = Field(default_factory=datetime.utcnow)
+    card_id: Optional[str] = Field(default=None, nullable=True)
+    user_type: Optional[int] = Field(default=None, sa_column=Column(Integer, ForeignKey("usertype.id", ondelete='CASCADE')), nullable=True)
+    email_verified: Optional[bool] = Field(default=False)
+    telegram_id: Optional[int] = Field(default=None, nullable=True)
     password: str
 
 
