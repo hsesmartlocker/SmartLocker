@@ -171,3 +171,9 @@ class History(SQLModel, table=True):
     data: dict = Field(sa_type=JSON)
     created: datetime
     type: str = Field(sa_column=Column(String, ForeignKey("operationtype.name", ondelete='CASCADE'), nullable=False))
+
+class RegistrationCode(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    email: str
+    code: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
