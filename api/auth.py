@@ -3,7 +3,7 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from sqlmodel import Session, select
 from models import User, RegistrationCode
-from database import engine, get_session
+from database import get_session, engine
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
 import random
@@ -12,7 +12,7 @@ from utils.email_sender import send_confirmation_email
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
-# Конфигурация токенов
+# JWT конфигурация
 SECRET_KEY = "smartlocker-secret-key"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
@@ -21,7 +21,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
 
 
 # ========================
-# MODELS
+# Pydantic модели
 # ========================
 class Token(BaseModel):
     access_token: str
@@ -34,12 +34,16 @@ class ConfirmData(BaseModel):
     password: str
 
 
+class ResetPasswordRequest(BaseModel):
+    old_password: str
+    new_password: str
+
+
 # ========================
-# AUTH FUNCTIONS
+# Утилиты
 # ========================
 def get_user_by_email(session: Session, email: str):
-    statement = select(User).where(User.email == email)
-    return session.exec(statement).first()
+    return session.exec(select(User).where(User.email == email)).first()
 
 
 def authenticate_user(email: str, password: str):
@@ -58,7 +62,7 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
 
 
 # ========================
-# LOGIN
+# Авторизация
 # ========================
 @router.post("/token", response_model=Token)
 def login(form_data: OAuth2PasswordRequestForm = Depends()):
@@ -70,24 +74,24 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
 
 
 # ========================
-# GET CURRENT USER
+# Получить текущего пользователя
 # ========================
-def get_current_user(token: str = Depends(oauth2_scheme)):
+def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
+        detail="Не удалось проверить токен",
     )
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        email: str = payload.get("sub")
-        if email is None:
+        email = payload.get("sub")
+        if not email:
             raise credentials_exception
     except JWTError:
         raise credentials_exception
 
     with Session(engine) as session:
         user = get_user_by_email(session, email)
-        if user is None:
+        if not user:
             raise credentials_exception
         return user
 
@@ -103,7 +107,7 @@ def read_users_me(current_user: User = Depends(get_current_user)):
 
 
 # ========================
-# REGISTRATION WITH CODE
+# Отправка кода на email
 # ========================
 @router.post("/send-code")
 def send_code(email: str, session: Session = Depends(get_session)):
@@ -126,6 +130,9 @@ def send_code(email: str, session: Session = Depends(get_session)):
     return {"message": "Код отправлен на почту"}
 
 
+# ========================
+# Подтверждение кода и регистрация
+# ========================
 @router.post("/confirm-code")
 def confirm_code(data: ConfirmData, session: Session = Depends(get_session)):
     result = session.exec(
@@ -152,15 +159,16 @@ def confirm_code(data: ConfirmData, session: Session = Depends(get_session)):
     return {"message": "Регистрация завершена"}
 
 
-class ResetPasswordRequest(BaseModel):
-    email: str
-    old_password: str
-    new_password: str
-
-
+# ========================
+# Смена пароля (авторизованный пользователь)
+# ========================
 @router.post("/reset-password")
-def reset_password(data: ResetPasswordRequest, session: Session = Depends(get_session)):
-    user = session.exec(select(User).where(User.email == data.email)).first()
+def reset_password(
+        data: ResetPasswordRequest,
+        session: Session = Depends(get_session),
+        current_user: User = Depends(get_current_user)
+):
+    user = session.exec(select(User).where(User.email == current_user.email)).first()
 
     if not user:
         raise HTTPException(status_code=404, detail="Пользователь не найден")
