@@ -1,6 +1,6 @@
 from sqlmodel import Session
 from database import engine
-from models import RequestStatus, UserType, ItemStatus, GroupStatus, OperationType
+from models import RequestStatus, UserType, ItemStatus
 
 def seed_data():
     with Session(engine) as session:
@@ -15,14 +15,6 @@ def seed_data():
         # ItemStatus
         for name in ["Свободен", "Выдан", "В ремонте", "Утерян"]:
             session.add(ItemStatus(name=name))
-
-        # GroupStatus
-        for name in ["Готов", "Не готов", "Архив"]:
-            session.add(GroupStatus(name=name))
-
-        # OperationType
-        for name in ["create", "update", "delete", "issue", "return"]:
-            session.add(OperationType(name=name))
 
         session.commit()
         print("✅ Начальные данные успешно добавлены.")

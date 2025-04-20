@@ -38,8 +38,22 @@ def create_request(request_data: RequestCreate, current_user: User = Depends(get
         return request
 
 
-@router.get("/")
-def get_user_requests(current_user: User = Depends(get_current_user)):
+@router.get("/my")
+def get_my_active_requests(current_user: User = Depends(get_current_user)):
     with Session(engine) as session:
-        statement = select(Request).where(Request.user == current_user.id)
-        return session.exec(statement).all()
+        requests = session.exec(
+            select(Request)
+            .where(Request.user == current_user.id)
+            .order_by(Request.created.desc())
+        ).all()
+
+        active_requests = []
+        for req in requests:
+            group = session.exec(select(Group).where(Group.id == req.id)).first()
+            if group and group.available:
+                active_requests.append({
+                    "id": req.id,
+                    "item_name": req.comment or "Оборудование",
+                    "planned_return_date": req.planned_return_date.strftime('%Y-%m-%d')
+                })
+        return active_requests
