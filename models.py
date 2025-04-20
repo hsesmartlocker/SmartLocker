@@ -60,8 +60,7 @@ class ItemStatus(SQLModel, table=True):
 class Item(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     inv_key: str
-    hardware: int = Field(sa_column=Column(Integer, ForeignKey("hardware.id", ondelete='CASCADE'), nullable=False))
-    group: int
+    name: str
     status: int = Field(sa_column=Column(Integer, ForeignKey("itemstatus.id", ondelete='CASCADE'), nullable=False))
     owner: str
     place: int = Field(sa_column=Column(Integer, ForeignKey("place.id", ondelete='CASCADE'), nullable=False))
