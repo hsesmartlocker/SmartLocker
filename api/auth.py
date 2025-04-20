@@ -19,6 +19,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
 
+
 # ========================
 # MODELS
 # ========================
@@ -26,10 +27,12 @@ class Token(BaseModel):
     access_token: str
     token_type: str
 
+
 class ConfirmData(BaseModel):
     email: str
     code: str
     password: str
+
 
 # ========================
 # AUTH FUNCTIONS
@@ -38,6 +41,7 @@ def get_user_by_email(session: Session, email: str):
     statement = select(User).where(User.email == email)
     return session.exec(statement).first()
 
+
 def authenticate_user(email: str, password: str):
     with Session(engine) as session:
         user = get_user_by_email(session, email)
@@ -45,11 +49,13 @@ def authenticate_user(email: str, password: str):
             return None
         return user
 
+
 def create_access_token(data: dict, expires_delta: timedelta = None):
     to_encode = data.copy()
     expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
 
 # ========================
 # LOGIN
@@ -61,6 +67,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
         raise HTTPException(status_code=401, detail="Incorrect email or password")
     access_token = create_access_token(data={"sub": user.email})
     return {"access_token": access_token, "token_type": "bearer"}
+
 
 # ========================
 # GET CURRENT USER
@@ -84,6 +91,7 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
             raise credentials_exception
         return user
 
+
 @router.get("/me")
 def read_users_me(current_user: User = Depends(get_current_user)):
     return {
@@ -92,6 +100,7 @@ def read_users_me(current_user: User = Depends(get_current_user)):
         "name": current_user.name,
         "user_type": current_user.user_type
     }
+
 
 # ========================
 # REGISTRATION WITH CODE
@@ -115,6 +124,7 @@ def send_code(email: str, session: Session = Depends(get_session)):
         raise HTTPException(status_code=500, detail="Не удалось отправить письмо")
 
     return {"message": "Код отправлен на почту"}
+
 
 @router.post("/confirm-code")
 def confirm_code(data: ConfirmData, session: Session = Depends(get_session)):
@@ -140,3 +150,26 @@ def confirm_code(data: ConfirmData, session: Session = Depends(get_session)):
     session.commit()
 
     return {"message": "Регистрация завершена"}
+
+
+class ResetPasswordRequest(BaseModel):
+    email: str
+    old_password: str
+    new_password: str
+
+
+@router.post("/reset-password")
+def reset_password(data: ResetPasswordRequest, session: Session = Depends(get_session)):
+    user = session.exec(select(User).where(User.email == data.email)).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
+
+    if user.password != data.old_password:
+        raise HTTPException(status_code=400, detail="Неверный пароль")
+
+    user.password = data.new_password
+    session.add(user)
+    session.commit()
+
+    return {"message": "Пароль успешно обновлён"}
