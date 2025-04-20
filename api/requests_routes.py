@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
-from models import Request, RequestStatus, User
+from models import Request, RequestStatus, User, Item
 from database import engine
 from api.auth import get_current_user
 from datetime import datetime
@@ -49,11 +49,11 @@ def get_my_active_requests(current_user: User = Depends(get_current_user)):
 
         active_requests = []
         for req in requests:
-            group = session.exec(select(Group).where(Group.id == req.id)).first()
-            if group and group.available:
+            item = session.exec(select(Item).where(Item.status == req.status, Item.available == True)).first()
+            if item:
                 active_requests.append({
                     "id": req.id,
-                    "item_name": req.comment or "Оборудование",
+                    "item_name": item.inv_key,
                     "planned_return_date": req.planned_return_date.strftime('%Y-%m-%d')
                 })
         return active_requests
