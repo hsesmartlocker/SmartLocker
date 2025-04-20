@@ -132,7 +132,8 @@ def confirm_code(data: ConfirmData, session: Session = Depends(get_session)):
     new_user = User(
         email=data.email,
         password=data.password,
-        active=True
+        active=True,
+        email_verified=True
     )
     session.add(new_user)
     session.delete(result)

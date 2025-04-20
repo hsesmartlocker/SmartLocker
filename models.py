@@ -21,7 +21,7 @@ class User(SQLModel, table=True):
         default=None,
         sa_column=Column(Integer, ForeignKey("usertype.id", ondelete='CASCADE'), nullable=True)
     )
-    email_verified: Optional[bool] = Field(default=False)
+    email_verified: Optional[bool] = Field(default=False, nullable=True)
     telegram_id: Optional[int] = Field(default=None, nullable=True)
     password: str
 
