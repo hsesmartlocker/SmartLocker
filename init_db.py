@@ -1,6 +1,6 @@
 from sqlmodel import SQLModel
 from database import engine
-import models  # обязательно импортировать, чтобы SQLModel "видел" их
+from models import *
 
 def create_db_and_tables():
     SQLModel.metadata.create_all(engine)
