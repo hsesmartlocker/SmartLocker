@@ -52,6 +52,7 @@ def populate_sample_data():
         # === Оборудование ===
         item = Item(
             inv_key="INV001",
+            name='Оборудование-Тест',
             status=item_free.id,
             owner="МИЭМ",
             available=True,

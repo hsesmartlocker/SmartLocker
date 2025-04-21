@@ -181,3 +181,7 @@ def reset_password(
     session.commit()
 
     return {"message": "Пароль успешно обновлён"}
+
+
+
+

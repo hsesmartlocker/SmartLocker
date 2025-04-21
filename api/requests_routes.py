@@ -53,7 +53,8 @@ def get_my_active_requests(current_user: User = Depends(get_current_user)):
             if item:
                 active_requests.append({
                     "id": req.id,
-                    "item_name": item.inv_key,
+                    "item_name": item.name,
                     "planned_return_date": req.planned_return_date.strftime('%Y-%m-%d')
                 })
         return active_requests
+

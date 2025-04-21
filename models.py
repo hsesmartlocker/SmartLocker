@@ -44,13 +44,6 @@ class Request(SQLModel, table=True):
     return_date: datetime
 
 
-# Доступы
-class UserAccess(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True)
-    user: int = Field(sa_column=Column(Integer, ForeignKey("user.id", ondelete='CASCADE'), nullable=False))
-    room: int = Field(sa_column=Column(Integer, ForeignKey("room.id", ondelete='CASCADE'), nullable=False))
-
-
 # Оборудование
 class ItemStatus(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
