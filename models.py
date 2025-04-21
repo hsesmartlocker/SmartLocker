@@ -60,6 +60,10 @@ class Item(SQLModel, table=True):
     place: int = Field(sa_column=Column(Integer, ForeignKey("place.id", ondelete='CASCADE'), nullable=False))
     available: bool
     specifications: dict = Field(sa_type=JSON)
+    access_level: int = Field(default=1)
+
+    class Config:
+        orm_mode = True
 
 
 class RegistrationCode(SQLModel, table=True):
