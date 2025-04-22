@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Optional
 from sqlmodel import Field, SQLModel, Column, Integer, String, ForeignKey, JSON
+from sqlalchemy import CheckConstraint
 
 
 # Пользователи и типы
@@ -51,19 +52,37 @@ class ItemStatus(SQLModel, table=True):
     name: str
 
 
+# Таблица с расположением ячеек
+class CellLocation(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str  # Пример: "слева", "справа-снизу", "по центру"
+
+# Таблица ячеек хранения
+class Cell(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    size: str  # Значения: 'S', 'M', 'L'
+    location_id: int = Field(sa_column=Column(Integer, ForeignKey("celllocation.id", ondelete="CASCADE")))
+    is_free: bool = Field(default=True)
+
+# Обновляем модель Item
 class Item(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     inv_key: str
     name: str
     status: int = Field(sa_column=Column(Integer, ForeignKey("itemstatus.id", ondelete='CASCADE'), nullable=False))
     owner: str
-    place: int = Field(sa_column=Column(Integer, ForeignKey("place.id", ondelete='CASCADE'), nullable=False))
     available: bool
+    access_level: int
     specifications: dict = Field(sa_type=JSON)
-    access_level: int = Field(default=1)
+    # Новое поле: в какой ячейке лежит предмет
+    cell: Optional[int] = Field(
+        default=None,
+        sa_column=Column(Integer, ForeignKey("cell.id", ondelete="SET NULL"))
+    )
 
-    class Config:
-        orm_mode = True
+    __table_args__ = (
+        CheckConstraint('cell BETWEEN 1 AND 20', name='cell_range_check'),
+    )
 
 
 class RegistrationCode(SQLModel, table=True):
