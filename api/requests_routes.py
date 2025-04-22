@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
-from models import Request, RequestStatus, User, Item
+from models import Request, RequestStatus, User, Item, Cell, CellLocation
 from database import engine
 from api.auth import get_current_user
 from datetime import datetime
 from pydantic import BaseModel
+
 
 router = APIRouter(prefix="/requests", tags=["Requests"])
 
@@ -13,6 +14,7 @@ class RequestCreate(BaseModel):
     item_id: int
     comment: str = "Автоматическое бронирование"
     planned_return_date: datetime
+
 
 @router.post("/", response_model=dict)
 def create_request(data: RequestCreate, current_user: User = Depends(get_current_user)):
@@ -46,7 +48,25 @@ def create_request(data: RequestCreate, current_user: User = Depends(get_current
         session.add(item)
 
         session.commit()
-        return {"message": "Заявка успешно создана"}
+
+        # Получаем данные о ячейке, если есть
+        cell_info = None
+        if item.cell:
+            cell = session.get(Cell, item.cell)
+            if cell:
+                location_name = session.exec(
+                    select(CellLocation.name).where(CellLocation.id == cell.location_id)
+                ).first()
+                cell_info = {
+                    "cell_id": cell.id,
+                    "size": cell.size,
+                    "location": location_name
+                }
+
+        return {
+            "message": "Заявка успешно создана",
+            "cell": cell_info
+        }
 
 
 @router.post("/")
