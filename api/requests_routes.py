@@ -5,6 +5,7 @@ from database import engine
 from api.auth import get_current_user
 from datetime import datetime
 from pydantic import BaseModel
+from utils import generate_postamat_code
 
 router = APIRouter(prefix="/requests", tags=["Requests"])
 
@@ -72,3 +73,20 @@ def get_my_requests(current_user: User = Depends(get_current_user)):
                 "planned_return_date": req.planned_return_date.strftime('%Y-%m-%d') if req.planned_return_date else None,
             })
         return result
+
+
+@router.post("/requests/{request_id}/generate-code")
+def generate_code(request_id: int, current_user: User = Depends(get_current_user)):
+    with Session(engine) as session:
+        request = session.get(Request, request_id)
+        if not request:
+            raise HTTPException(status_code=404, detail="Request not found")
+        if request.user != current_user.id:
+            raise HTTPException(status_code=403, detail="Forbidden")
+
+        code, expiry = generate_postamat_code()
+        request.postamat_code = code
+        request.code_expiry = expiry
+        session.add(request)
+        session.commit()
+        return {"code": code, "expires_at": expiry}

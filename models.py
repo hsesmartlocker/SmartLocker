@@ -44,6 +44,8 @@ class Request(SQLModel, table=True):
     planned_return_date: datetime
     return_date: Optional[datetime] = Field(default=None, nullable=True)
     item_id: int = Field(sa_column=Column(Integer, ForeignKey("item.id", ondelete='CASCADE'), nullable=False))
+    postamat_code: Optional[str] = None
+    code_expiry: Optional[datetime] = None
 
 
 # Оборудование
