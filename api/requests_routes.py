@@ -16,24 +16,25 @@ class RequestCreate(BaseModel):
 
 
 @router.post("/", response_model=dict)
-def create_request(
-    data: RequestCreate,
-    current_user: User = Depends(get_current_user)
-):
+def create_request(data: RequestCreate, current_user: User = Depends(get_current_user)):
     with Session(engine) as session:
-        # Проверка наличия и доступности оборудования
         item = session.get(Item, data.item_id)
         if not item or not item.available:
             raise HTTPException(status_code=400, detail="Оборудование недоступно")
 
-        # Получение статуса "Создана"
+        # Определяем статус заявки
+        status_name = (
+            "Ожидает получение" if item.access_level == 1 else "На рассмотрении"
+        )
         status = session.exec(
-            select(RequestStatus).where(RequestStatus.name == "Создана")
+            select(RequestStatus).where(RequestStatus.name == status_name)
         ).first()
         if not status:
-            raise HTTPException(status_code=400, detail="Статус 'Создана' не найден")
+            raise HTTPException(
+                status_code=400, detail=f"Не найден статус '{status_name}'"
+            )
 
-        # Создание заявки
+        # Создаём заявку
         request = Request(
             status=status.id,
             user=current_user.id,
@@ -45,7 +46,7 @@ def create_request(
         )
         session.add(request)
 
-        # Обновление доступности оборудования
+        # Обновляем оборудование
         item.available = False
         session.add(item)
 
