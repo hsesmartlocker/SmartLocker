@@ -90,3 +90,33 @@ def generate_code(request_id: int, current_user: User = Depends(get_current_user
         session.add(request)
         session.commit()
         return {"code": code, "expires_at": expiry}
+
+
+@router.post("/{request_id}/cancel")
+def cancel_request(request_id: int, current_user: User = Depends(get_current_user)):
+    with Session(engine) as session:
+        request = session.get(Request, request_id)
+        if not request:
+            raise HTTPException(status_code=404, detail="Заявка не найдена")
+        if request.user != current_user.id:
+            raise HTTPException(status_code=403, detail="Нет доступа к этой заявке")
+
+        # Получаем статус "Отклонена"
+        status = session.exec(
+            select(RequestStatus).where(RequestStatus.name == "Отклонена")
+        ).first()
+        if not status:
+            raise HTTPException(status_code=400, detail="Статус 'Отклонена' не найден")
+
+        # Обновляем статус заявки
+        request.status = status.id
+        session.add(request)
+
+        # Освобождаем оборудование
+        item = session.get(Item, request.item_id)
+        if item:
+            item.available = True
+            session.add(item)
+
+        session.commit()
+        return {"message": "Бронирование успешно отменено"}
