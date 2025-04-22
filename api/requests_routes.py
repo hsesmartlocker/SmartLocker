@@ -24,7 +24,7 @@ def create_request(data: RequestCreate, current_user: User = Depends(get_current
 
         # Определяем статус заявки
         status_name = (
-            "Ожидает получение" if item.access_level == 1 else "На рассмотрении"
+            "Ожидает получения" if item.access_level == 1 else "Создана"
         )
         status = session.exec(
             select(RequestStatus).where(RequestStatus.name == status_name)
