@@ -75,7 +75,7 @@ def get_my_requests(current_user: User = Depends(get_current_user)):
         return result
 
 
-@router.post("/requests/{request_id}/generate-code")
+@router.post("/{request_id}/generate-code")
 def generate_code(request_id: int, current_user: User = Depends(get_current_user)):
     with Session(engine) as session:
         request = session.get(Request, request_id)
