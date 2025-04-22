@@ -5,7 +5,7 @@ from database import engine
 from api.auth import get_current_user
 from datetime import datetime
 from pydantic import BaseModel
-from utils import generate_postamat_code
+from utils.generate_postamat_code import generate_postamat_code
 
 router = APIRouter(prefix="/requests", tags=["Requests"])
 
