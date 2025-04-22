@@ -35,14 +35,14 @@ class RequestStatus(SQLModel, table=True):
 class Request(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     status: int = Field(sa_column=Column(Integer, ForeignKey("requeststatus.id", ondelete='CASCADE'), nullable=False))
-    item_id: int = Field(foreign_key="item.id")
     user: int = Field(sa_column=Column(Integer, ForeignKey("user.id", ondelete='CASCADE'), nullable=False))
     issued_by: int = Field(sa_column=Column(Integer, ForeignKey("user.id", ondelete='CASCADE'), nullable=False))
     comment: str
     created: datetime
-    takendate: datetime
+    takendate: Optional[datetime] = Field(default=None, nullable=True)
     planned_return_date: datetime
-    return_date: datetime
+    return_date: Optional[datetime] = Field(default=None, nullable=True)
+    item_id: int = Field(sa_column=Column(Integer, ForeignKey("item.id", ondelete='CASCADE'), nullable=False))
 
 
 # Оборудование

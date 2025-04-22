@@ -10,9 +10,43 @@ router = APIRouter(prefix="/requests", tags=["Requests"])
 
 
 class RequestCreate(BaseModel):
-    takendate: datetime
+    item_id: int
+    comment: str = "Автоматическое бронирование"
     planned_return_date: datetime
-    comment: str = ""
+
+@router.post("/", response_model=dict)
+def create_request(data: RequestCreate, current_user: User = Depends(get_current_user)):
+    with Session(engine) as session:
+        # Проверка — есть ли такое оборудование и доступно ли оно
+        item = session.get(Item, data.item_id)
+        if not item or not item.available:
+            raise HTTPException(status_code=400, detail="Оборудование недоступно")
+
+        # Получаем статус "Ожидание"
+        status = session.exec(
+            select(RequestStatus).where(RequestStatus.name == "Ожидание")
+        ).first()
+        if not status:
+            raise HTTPException(status_code=400, detail="Не найден статус 'Ожидание'")
+
+        # Создание заявки
+        request = Request(
+            status=status.id,
+            user=current_user.id,
+            issued_by=current_user.id,
+            created=datetime.utcnow(),
+            comment=data.comment,
+            planned_return_date=data.planned_return_date,
+            item_id=data.item_id,
+        )
+        session.add(request)
+
+        # Обновляем доступность
+        item.available = False
+        session.add(item)
+
+        session.commit()
+        return {"message": "Заявка успешно создана"}
 
 
 @router.post("/")
