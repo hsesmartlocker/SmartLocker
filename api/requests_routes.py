@@ -126,3 +126,26 @@ def cancel_request(request_id: int, current_user: User = Depends(get_current_use
         session.commit()
 
         return {"message": "Заявка отменена и перенесена в архив"}
+
+
+@router.get("/history")
+def get_archived_requests(current_user: User = Depends(get_current_user)):
+    with Session(engine) as session:
+        requests = session.exec(
+            select(ArchivedRequest)
+            .where(ArchivedRequest.user == current_user.id)
+            .order_by(ArchivedRequest.created.desc())
+        ).all()
+
+        result = []
+        for req in requests:
+            item = session.get(Item, req.item_id)
+            status = session.get(RequestStatus, req.status)
+            result.append({
+                "id": req.id,
+                "item_name": item.name if item else "Оборудование",
+                "status": status.name if status else "Неизвестно",
+                "created": req.created.strftime('%Y-%m-%d %H:%M'),
+                "planned_return_date": req.planned_return_date.strftime('%Y-%m-%d') if req.planned_return_date else None,
+            })
+        return result
