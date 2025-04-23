@@ -7,6 +7,7 @@ from datetime import datetime
 from pydantic import BaseModel
 from utils.generate_postamat_code import generate_postamat_code
 from models import ArchivedRequest
+from utils.email_sender import send_admin_request_email
 
 router = APIRouter(prefix="/requests", tags=["Requests"])
 
@@ -24,10 +25,7 @@ def create_request(data: RequestCreate, current_user: User = Depends(get_current
         if not item or not item.available:
             raise HTTPException(status_code=400, detail="Оборудование недоступно")
 
-        # Определяем статус заявки
-        status_name = (
-            "Ожидает получения" if item.access_level == 1 else "Создана"
-        )
+        status_name = "Ожидает получения" if item.access_level == 1 else "Создана"
         status = session.exec(
             select(RequestStatus).where(RequestStatus.name == status_name)
         ).first()
@@ -36,7 +34,6 @@ def create_request(data: RequestCreate, current_user: User = Depends(get_current
                 status_code=400, detail=f"Не найден статус '{status_name}'"
             )
 
-        # Создаём заявку
         request = Request(
             status=status.id,
             user=current_user.id,
@@ -47,12 +44,22 @@ def create_request(data: RequestCreate, current_user: User = Depends(get_current
             item_id=data.item_id,
         )
         session.add(request)
-
-        # Обновляем оборудование
         item.available = False
         session.add(item)
 
         session.commit()
+
+        # Отправляем письмо, если доступ не автоматический
+        if item.access_level != 1:
+            try:
+                send_admin_request_email(
+                    user_email=current_user.email,
+                    equipment_name=item.name,
+                    reason=data.comment
+                )
+            except Exception as e:
+                print(f"[email error] Ошибка при отправке письма: {e}")
+
         return {"message": "Заявка успешно создана"}
 
 
@@ -71,7 +78,8 @@ def get_my_requests(current_user: User = Depends(get_current_user)):
                 "id": req.id,
                 "item_name": item.name if item else "Оборудование",
                 "status": status.name if status else "Неизвестно",
-                "planned_return_date": req.planned_return_date.strftime('%Y-%m-%d') if req.planned_return_date else None,
+                "planned_return_date": req.planned_return_date.strftime(
+                    '%Y-%m-%d') if req.planned_return_date else None,
             })
         return result
 
@@ -146,6 +154,7 @@ def get_archived_requests(current_user: User = Depends(get_current_user)):
                 "item_name": item.name if item else "Оборудование",
                 "status": status.name if status else "Неизвестно",
                 "created": req.created.strftime('%Y-%m-%d %H:%M'),
-                "planned_return_date": req.planned_return_date.strftime('%Y-%m-%d') if req.planned_return_date else None,
+                "planned_return_date": req.planned_return_date.strftime(
+                    '%Y-%m-%d') if req.planned_return_date else None,
             })
         return result
