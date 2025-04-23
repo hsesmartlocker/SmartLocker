@@ -10,7 +10,7 @@ class SupportRequest(BaseModel):
 
 router = APIRouter(prefix="/support", tags=["Support"])
 
-@router.post("/", response_model=dict)
+@router.post("", response_model=dict)
 def send_support_request(
     support_data: SupportRequest,
     current_user: User = Depends(get_current_user)
@@ -18,13 +18,13 @@ def send_support_request(
     message = support_data.message
     user_email = current_user.email
 
-    print(f"[support] Получено обращение от {user_email}: {message}")  # <--- ВАЖНО
+    print(f"[support] Получено обращение от {user_email}: {message}")
 
     try:
         send_support_message(user_email, message)
         return {"message": "Обращение успешно отправлено"}
     except Exception as e:
-        print(f"[support error] {e}")  # <--- ВАЖНО
+        print(f"[support error] {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Не удалось отправить обращение: {str(e)}"
