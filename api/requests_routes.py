@@ -105,9 +105,9 @@ def cancel_request(request_id: int, current_user: User = Depends(get_current_use
             session.add(item)
 
         # Переносим заявку в архив
-        session.exec(
+        session.execute(
             """
-            INSERT INTO archived_requests
+            INSERT INTO archivedrequest
             SELECT * FROM request WHERE id = :rid
             """,
             {"rid": request_id},
@@ -116,4 +116,5 @@ def cancel_request(request_id: int, current_user: User = Depends(get_current_use
         # Удаляем заявку
         session.delete(request)
         session.commit()
+
         return {"message": "Заявка отменена и перенесена в архив"}
