@@ -6,6 +6,7 @@ from api.auth import get_current_user
 from datetime import datetime
 from pydantic import BaseModel
 from utils.generate_postamat_code import generate_postamat_code
+from sqlalchemy import text
 
 router = APIRouter(prefix="/requests", tags=["Requests"])
 
@@ -106,10 +107,10 @@ def cancel_request(request_id: int, current_user: User = Depends(get_current_use
 
         # Переносим заявку в архив
         session.execute(
-            """
-            INSERT INTO archivedrequest
-            SELECT * FROM request WHERE id = :rid
-            """,
+            text("""
+                INSERT INTO archivedrequest
+                SELECT * FROM request WHERE id = :rid
+            """),
             {"rid": request_id},
         )
 
