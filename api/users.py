@@ -23,7 +23,7 @@ def get_user_by_id(user_id: int, current_user: User = Depends(get_current_user))
         return user
 
 
-@router.delete("/user/delete")
+@router.delete("/delete")
 def delete_user(current_user: User = Depends(get_current_user)):
     with Session(engine) as session:
         active_requests = session.exec(
