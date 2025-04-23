@@ -48,6 +48,21 @@ class Request(SQLModel, table=True):
     code_expiry: Optional[datetime] = None
 
 
+class ArchivedRequest(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    status: int = Field(sa_column=Column(Integer, ForeignKey("requeststatus.id", ondelete='SET NULL'), nullable=True))
+    user: int = Field(sa_column=Column(Integer, ForeignKey("user.id", ondelete='SET NULL'), nullable=True))
+    issued_by: int = Field(sa_column=Column(Integer, ForeignKey("user.id", ondelete='SET NULL'), nullable=True))
+    comment: str
+    created: datetime
+    takendate: Optional[datetime] = Field(default=None, nullable=True)
+    planned_return_date: datetime
+    return_date: Optional[datetime] = Field(default=None, nullable=True)
+    item_id: int = Field(sa_column=Column(Integer, ForeignKey("item.id", ondelete='SET NULL'), nullable=True))
+    postamat_code: Optional[str] = None
+    code_expiry: Optional[datetime] = None
+
+
 # Оборудование
 class ItemStatus(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
