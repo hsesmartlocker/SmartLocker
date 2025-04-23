@@ -2,19 +2,21 @@ from fastapi import APIRouter, Depends, HTTPException, status, Body
 from api.auth import get_current_user
 from models import User
 from utils.email_sender import send_support_message
+from pydantic import BaseModel
+
+
+class SupportRequest(BaseModel):
+    message: str
 
 router = APIRouter(prefix="/support", tags=["Support"])
 
 @router.post("/", response_model=dict)
 def send_support_request(
-    data: dict = Body(...),  # <-- ВАЖНО: теперь FastAPI будет парсить тело
+    support_data: SupportRequest,
     current_user: User = Depends(get_current_user)
 ):
+    message = support_data.message
     user_email = current_user.email
-    message = data.get("message")
-
-    if not message:
-        raise HTTPException(status_code=400, detail="Пустое сообщение обращения")
 
     try:
         send_support_message(user_email, message)
