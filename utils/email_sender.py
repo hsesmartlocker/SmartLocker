@@ -38,3 +38,20 @@ def send_admin_request_email(user_email: str, equipment_name: str, reason: str):
     with smtplib.SMTP_SSL("smtp.yandex.ru", 465) as server:
         server.login(EMAIL_FROM, EMAIL_PASSWORD)
         server.send_message(msg)
+
+
+def send_support_message(user_email: str, message: str):
+    body = f"""
+Обращение от пользователя: {user_email}
+
+Текст обращения:
+{message}
+"""
+    msg = MIMEText(body)
+    msg["Subject"] = f"Обращение в поддержку от {user_email}"
+    msg["From"] = EMAIL_FROM
+    msg["To"] = EMAIL_FROM
+
+    with smtplib.SMTP_SSL("smtp.yandex.ru", 465) as server:
+        server.login(EMAIL_FROM, EMAIL_PASSWORD)
+        server.send_message(msg)
