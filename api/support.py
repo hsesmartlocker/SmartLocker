@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request as FastAPIRequest
+from fastapi import APIRouter, Depends, HTTPException, status, Body
 from sqlmodel import Session
 from api.auth import get_current_user
 from database import engine
@@ -9,13 +9,13 @@ router = APIRouter(prefix="/support", tags=["Support"])
 
 @router.post("/", response_model=dict)
 def send_support_request(
-    data: dict,
+    data: dict = Body(...),
     current_user: User = Depends(get_current_user)
 ):
     user_email = current_user.email
     message = data.get("message")
 
-    if not message:
+    if not message or not message.strip():
         raise HTTPException(status_code=400, detail="Пустое сообщение обращения")
 
     try:
