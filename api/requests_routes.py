@@ -6,7 +6,7 @@ from api.auth import get_current_user
 from datetime import datetime
 from pydantic import BaseModel
 from utils.generate_postamat_code import generate_postamat_code
-from sqlalchemy import text
+from models import ArchivedRequest
 
 router = APIRouter(prefix="/requests", tags=["Requests"])
 
@@ -105,16 +105,23 @@ def cancel_request(request_id: int, current_user: User = Depends(get_current_use
             item.available = True
             session.add(item)
 
-        # Переносим заявку в архив
-        session.execute(
-            text("""
-                INSERT INTO archivedrequest
-                SELECT * FROM request WHERE id = :rid
-            """),
-            {"rid": request_id},
-        )
+        # Статус "Отменена"
+        status = session.exec(
+            select(RequestStatus).where(RequestStatus.name == 'Отменена')
+        ).first()
 
-        # Удаляем заявку
+        if not status:
+            raise HTTPException(status_code=400, detail="Не найден статус 'Отменена'")
+
+        # Обновим статус
+        request.status = status.id
+        session.commit()
+
+        # Скопируем в архив
+        archived = ArchivedRequest.from_orm(request)
+        session.add(archived)
+
+        # Удалим из основной таблицы
         session.delete(request)
         session.commit()
 
