@@ -1,32 +1,26 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Body
 from api.auth import get_current_user
 from models import User
 from utils.email_sender import send_support_message
 
 router = APIRouter(prefix="/support", tags=["Support"])
 
-@router.post("/")
-async def send_support_request(
-    request: Request,
-    current_user: User = Depends(get_current_user),
+@router.post("/", response_model=dict)
+def send_support_request(
+    data: dict = Body(...),  # <-- ВАЖНО: теперь FastAPI будет парсить тело
+    current_user: User = Depends(get_current_user)
 ):
-    data = await request.json()
+    user_email = current_user.email
     message = data.get("message")
 
-    if not message or not message.strip():
+    if not message:
         raise HTTPException(status_code=400, detail="Пустое сообщение обращения")
 
-    # Пытаемся отправить письмо
     try:
-        send_support_message(
-            user_email=current_user.email,
-            message=message
-        )
+        send_support_message(user_email, message)
+        return {"message": "Обращение успешно отправлено"}
     except Exception as e:
-        print(f"[email error] Ошибка при отправке письма: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Не удалось отправить обращение"
+            detail=f"Не удалось отправить обращение: {str(e)}"
         )
-
-    return {"message": "Обращение успешно отправлено"}
