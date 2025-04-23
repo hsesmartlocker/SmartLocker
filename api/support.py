@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request as FastAPIRequest
 from sqlmodel import Session
-from auth import get_current_user
+from api.auth import get_current_user
 from database import engine
 from models import User
 from utils.email_sender import send_support_message
