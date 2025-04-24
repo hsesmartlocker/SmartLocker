@@ -20,7 +20,7 @@ def get_me(current_user: User = Depends(get_current_user)):
         "id": current_user.id,
         "email": current_user.email,
         "name": current_user.name,
-        "user_type": current_user.type,
+        "user_type": current_user.user_type,
         "active": current_user.active,
         "created": current_user.created.isoformat() if current_user.created else None
     }
