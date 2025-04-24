@@ -100,6 +100,32 @@ def get_all_requests(current_user: User = Depends(get_current_user), session: Se
     return requests
 
 
+class StatusUpdateData(BaseModel):
+    request_id: int
+    status: int  # 2 = отклонено, 3 = разрешено
+
+
+@router.post("/requests/update-status")
+def update_request_status(
+        data: StatusUpdateData,
+        session: Session = Depends(get_session),
+        current_user: User = Depends(get_current_user)
+):
+    if current_user.user_type != 3:
+        raise HTTPException(status_code=403, detail="Доступ запрещён")
+
+    request = session.exec(select(Request).where(Request.id == data.request_id)).first()
+
+    if not request:
+        raise HTTPException(status_code=404, detail="Заявка не найдена")
+
+    request.status = data.status
+    session.add(request)
+    session.commit()
+
+    return {"message": "Статус заявки обновлён"}
+
+
 @router.post("/{request_id}/generate-code")
 def generate_code(request_id: int, current_user: User = Depends(get_current_user)):
     with Session(engine) as session:
