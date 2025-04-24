@@ -147,12 +147,22 @@ def confirm_code(data: ConfirmData, session: Session = Depends(get_session)):
     if user_exists:
         raise HTTPException(status_code=400, detail="Пользователь уже существует")
 
+    # Определяем тип пользователя по почте
+    if data.email.endswith('@edu.hse.ru'):
+        user_type = 1  # студент
+    elif data.email.endswith('@hse.ru'):
+        user_type = 2  # сотрудник
+    else:
+        user_type = 0  # другой (по желанию, можно и исключение кидать)
+
     new_user = User(
         email=data.email,
         password=data.password,
         active=True,
-        email_verified=True
+        email_verified=True,
+        type=user_type  # <- добавлено
     )
+
     session.add(new_user)
     session.delete(result)
     session.commit()
