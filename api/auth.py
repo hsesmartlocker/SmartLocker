@@ -184,21 +184,30 @@ def reset_password(
     return {"message": "Пароль успешно обновлён"}
 
 
+class ResetPasswordSimpleRequest(BaseModel):
+    email: str
+
 @router.post("/reset-password-simple")
-def reset_password_simple(email: str):
-    with Session(engine) as session:
-        user = session.exec(select(User).where(User.email == email)).first()
-        if not user:
-            raise HTTPException(status_code=404, detail="Пользователь не найден")
+def reset_password_simple(
+    data: ResetPasswordSimpleRequest,
+    session: Session = Depends(get_session)
+):
+    email = data.email
+    user = session.exec(select(User).where(User.email == email)).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
 
-        new_password = f"hse{random.randint(100000, 999999)}"
-        user.password = new_password
-        session.add(user)
-        session.commit()
+    # Генерируем новый пароль
+    new_password = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
+    user.password = new_password
+    session.add(user)
+    session.commit()
 
-        try:
-            send_temporary_password_email(email, new_password)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Не удалось отправить письмо: {e}")
+    try:
+        send_temporary_password_email(email, new_password)
+    except Exception as e:
+        print(f"[email error] {e}")
+        raise HTTPException(status_code=500, detail="Ошибка при отправке письма")
 
-        return {"message": "Новый пароль отправлен на почту"}
+    return {"message": "Новый пароль отправлен на почту"}
+
