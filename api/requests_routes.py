@@ -84,12 +84,10 @@ def get_my_requests(current_user: User = Depends(get_current_user)):
         return result
 
 
-@router.get("/requests/all")
+@router.get("/all")
 def get_all_requests(current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
     if current_user.user_type != 3:
         raise HTTPException(status_code=403, detail="Только для админа")
-
-    from models import Request, Item, User  # если нужно
 
     statement = (
         select(Request)
