@@ -160,7 +160,7 @@ def confirm_code(data: ConfirmData, session: Session = Depends(get_session)):
         password=data.password,
         active=True,
         email_verified=True,
-        type=user_type  # <- добавлено
+        user_type=user_type  # <- добавлено
     )
 
     session.add(new_user)
