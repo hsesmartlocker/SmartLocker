@@ -14,6 +14,18 @@ def get_users(current_user: User = Depends(get_current_user)):
         return users
 
 
+@router.get("/me")
+def get_me(current_user: User = Depends(get_current_user)):
+    return {
+        "id": current_user.id,
+        "email": current_user.email,
+        "name": current_user.name,
+        "type": current_user.type,
+        "active": current_user.active,
+        "created": current_user.created.isoformat() if current_user.created else None
+    }
+
+
 @router.get("/{user_id}")
 def get_user_by_id(user_id: int, current_user: User = Depends(get_current_user)):
     with Session(engine) as session:
@@ -40,15 +52,3 @@ def delete_user(current_user: User = Depends(get_current_user)):
             session.delete(user)
             session.commit()
         return {"message": "Аккаунт удален"}
-
-
-@router.get("/me")
-def get_me(current_user: User = Depends(get_current_user)):
-    return {
-        "id": current_user.id,
-        "email": current_user.email,
-        "name": current_user.name,
-        "type": current_user.type,
-        "active": current_user.active,
-        "created": current_user.created.isoformat() if current_user.created else None
-    }
