@@ -59,15 +59,14 @@ def send_support_message(user_email: str, message: str):
 
 def send_temporary_password_email(to_email: str, new_password: str):
     body = f"""
-Вы запросили сброс пароля в системе SmartLocker.
+    Ваш новый пароль от SmartLocker:
 
-Ваш новый временный пароль:
-{new_password}
+    {new_password}
 
-Пожалуйста, войдите в систему и смените пароль в настройках как можно скорее.
-"""
+    Не забудьте сменить его в личном кабинете после входа.
+    """
     msg = MIMEText(body)
-    msg["Subject"] = "Временный пароль от SmartLocker"
+    msg["Subject"] = "Новый пароль SmartLocker"
     msg["From"] = EMAIL_FROM
     msg["To"] = to_email
 
