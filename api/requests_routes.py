@@ -7,7 +7,7 @@ from datetime import datetime
 from pydantic import BaseModel
 from utils.generate_postamat_code import generate_postamat_code
 from models import ArchivedRequest
-from utils.email_sender import send_admin_request_email
+from utils.email_sender import send_admin_request_email, send_notification_email
 
 router = APIRouter(prefix="/requests", tags=["Requests"])
 
@@ -105,6 +105,8 @@ class StatusUpdateData(BaseModel):
     status: int  # 2 = отклонено, 3 = разрешено
 
 
+from utils.email_sender import send_notification_email
+
 @router.post("/update-status")
 def update_request_status(
         data: StatusUpdateData,
@@ -122,6 +124,41 @@ def update_request_status(
     request.status = data.status
     session.add(request)
     session.commit()
+
+    # Получаем пользователя
+    user = session.exec(select(User).where(User.id == request.user)).first()
+
+    if user and user.email:
+        try:
+            if data.status == 2:
+                # Отклонение заявки
+                send_notification_email(
+                    to_email=user.email,
+                    subject="Заявка отклонена",
+                    body=(
+                        f"Здравствуйте!\n\n"
+                        f"Ваша заявка на бронирование оборудования была рассмотрена, "
+                        f"но, к сожалению, мы не можем её одобрить в данный момент.\n\n"
+                        f"Если у вас возникли вопросы, просто ответьте на это письмо.\n\n"
+                        f"С уважением,\nКоманда SmartLocker HSE"
+                    )
+                )
+            elif data.status == 3:
+                # Заявка одобрена
+                send_notification_email(
+                    to_email=user.email,
+                    subject="Заявка одобрена — оборудование готово к получению",
+                    body=(
+                        f"Здравствуйте!\n\n"
+                        f"Ваша заявка на бронирование оборудования была одобрена.\n"
+                        f"Вы можете забрать оборудование в течение ближайших 24 часов.\n\n"
+                        f"Для получения используйте код из приложения и не забудьте ваш пропуск.\n\n"
+                        f"Если возникнут вопросы, напишите нам ответом на это письмо.\n\n"
+                        f"— Команда SmartLocker HSE"
+                    )
+                )
+        except Exception as e:
+            print(f"[Ошибка при отправке письма] {e}")
 
     return {"message": "Статус заявки обновлён"}
 

@@ -73,3 +73,17 @@ def send_temporary_password_email(to_email: str, new_password: str):
     with smtplib.SMTP_SSL("smtp.yandex.ru", 465) as server:
         server.login(EMAIL_FROM, EMAIL_PASSWORD)
         server.send_message(msg)
+
+
+def send_notification_email(to_email: str, subject: str, body: str):
+    """
+    Универсальная функция для отправки уведомлений пользователю.
+    """
+    msg = MIMEText(body)
+    msg["Subject"] = subject
+    msg["From"] = EMAIL_FROM
+    msg["To"] = to_email
+
+    with smtplib.SMTP_SSL("smtp.yandex.ru", 465) as server:
+        server.login(EMAIL_FROM, EMAIL_PASSWORD)
+        server.send_message(msg)
