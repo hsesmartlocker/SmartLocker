@@ -84,7 +84,7 @@ def get_my_requests(current_user: User = Depends(get_current_user)):
         return result
 
 
-@router.get("/requests/all")
+@router.get("/all")
 def get_all_requests(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user)
