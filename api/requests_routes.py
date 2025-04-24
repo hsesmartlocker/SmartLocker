@@ -107,6 +107,9 @@ class StatusUpdateData(BaseModel):
 
 from utils.email_sender import send_notification_email
 
+from models import ArchivedRequest  # не забудь импортировать модель!
+
+
 @router.post("/update-status")
 def update_request_status(
         data: StatusUpdateData,
@@ -121,17 +124,26 @@ def update_request_status(
     if not request:
         raise HTTPException(status_code=404, detail="Заявка не найдена")
 
-    request.status = data.status
-    session.add(request)
-    session.commit()
-
     # Получаем пользователя
     user = session.exec(select(User).where(User.id == request.user)).first()
 
-    if user and user.email:
-        try:
-            if data.status == 2:
-                # Отклонение заявки
+    if data.status == 2:
+        # Перенос в архив перед удалением
+        archived = ArchivedRequest(
+            user=request.user,
+            item_id=request.item_id,
+            created=request.created,
+            planned_return_date=request.planned_return_date,
+            actual_return_date=None,
+            comment=request.comment,
+            status=2
+        )
+        session.add(archived)
+        session.delete(request)
+        session.commit()
+
+        if user and user.email:
+            try:
                 send_notification_email(
                     to_email=user.email,
                     subject="Заявка отклонена",
@@ -143,8 +155,18 @@ def update_request_status(
                         f"С уважением,\nКоманда SmartLocker HSE"
                     )
                 )
-            elif data.status == 3:
-                # Заявка одобрена
+            except Exception as e:
+                print(f"[Ошибка при отправке письма] {e}")
+
+        return {"message": "Заявка перенесена в архив"}
+
+    else:
+        request.status = data.status
+        session.add(request)
+        session.commit()
+
+        if user and user.email and data.status == 3:
+            try:
                 send_notification_email(
                     to_email=user.email,
                     subject="Заявка одобрена — оборудование готово к получению",
@@ -157,10 +179,10 @@ def update_request_status(
                         f"— Команда SmartLocker HSE"
                     )
                 )
-        except Exception as e:
-            print(f"[Ошибка при отправке письма] {e}")
+            except Exception as e:
+                print(f"[Ошибка при отправке письма] {e}")
 
-    return {"message": "Статус заявки обновлён"}
+        return {"message": "Статус заявки обновлён"}
 
 
 @router.post("/{request_id}/generate-code")
