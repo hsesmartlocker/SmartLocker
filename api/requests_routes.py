@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
 from models import Request, Item, RequestStatus, User
 from database import engine
-from api.auth import get_current_user
+from api.auth import get_current_user, get_session
 from datetime import datetime
 from pydantic import BaseModel
 from utils.generate_postamat_code import generate_postamat_code
@@ -82,6 +82,21 @@ def get_my_requests(current_user: User = Depends(get_current_user)):
                     '%Y-%m-%d') if req.planned_return_date else None,
             })
         return result
+
+
+@router.get("/requests/all")
+def get_all_requests(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.type != 3:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Доступ разрешён только администраторам"
+        )
+
+    requests = session.exec(select(Request)).all()
+    return requests
 
 
 @router.post("/{request_id}/generate-code")
