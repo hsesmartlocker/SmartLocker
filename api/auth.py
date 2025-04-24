@@ -9,8 +9,7 @@ from datetime import datetime, timedelta
 import random
 import string
 from utils.email_sender import send_confirmation_email, send_temporary_password_email
-from passlib.context import CryptContext
-import secrets
+
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -185,36 +184,21 @@ def reset_password(
     return {"message": "Пароль успешно обновлён"}
 
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-@router.post("/reset-password-simple", response_model=dict)
-def reset_password_simple(data: dict):
-    email = data.get("email")
-    if not email:
-        raise HTTPException(status_code=400, detail="Почта не указана")
-
+@router.post("/reset-password-simple")
+def reset_password_simple(email: str):
     with Session(engine) as session:
         user = session.exec(select(User).where(User.email == email)).first()
-
         if not user:
-            raise HTTPException(
-                status_code=404, detail="Пользователь с такой почтой не найден"
-            )
+            raise HTTPException(status_code=404, detail="Пользователь не найден")
 
-        # Генерируем новый временный пароль
-        new_password = secrets.token_urlsafe(8)  # Например: YxZ9kjUQ
-        hashed_password = pwd_context.hash(new_password)
-        user.hashed_password = hashed_password
-
+        new_password = f"hse{random.randint(100000, 999999)}"
+        user.password = new_password
         session.add(user)
         session.commit()
 
         try:
-            send_temporary_password_email(user.email, new_password)
+            send_temporary_password_email(email, new_password)
         except Exception as e:
-            print(f"[email error] {e}")
-            raise HTTPException(
-                status_code=500, detail="Не удалось отправить письмо"
-            )
+            raise HTTPException(status_code=500, detail=f"Не удалось отправить письмо: {e}")
 
         return {"message": "Новый пароль отправлен на почту"}
