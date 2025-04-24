@@ -105,7 +105,7 @@ class StatusUpdateData(BaseModel):
     status: int  # 2 = отклонено, 3 = разрешено
 
 
-@router.post("/requests/update-status")
+@router.post("/update-status")
 def update_request_status(
         data: StatusUpdateData,
         session: Session = Depends(get_session),
