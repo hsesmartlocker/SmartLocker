@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr, constr
 from sqlmodel import Session, select
 from models import User, RegistrationCode
 from database import get_session, engine
@@ -8,7 +8,9 @@ from jose import JWTError, jwt
 from datetime import datetime, timedelta
 import random
 import string
-from utils.email_sender import send_confirmation_email
+from utils.email_sender import send_confirmation_email, send_temporary_password_email
+from passlib.context import CryptContext
+import secrets
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -183,5 +185,36 @@ def reset_password(
     return {"message": "Пароль успешно обновлён"}
 
 
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+@router.post("/reset-password-simple", response_model=dict)
+def reset_password_simple(data: dict):
+    email = data.get("email")
+    if not email:
+        raise HTTPException(status_code=400, detail="Почта не указана")
 
+    with Session(engine) as session:
+        user = session.exec(select(User).where(User.email == email)).first()
+
+        if not user:
+            raise HTTPException(
+                status_code=404, detail="Пользователь с такой почтой не найден"
+            )
+
+        # Генерируем новый временный пароль
+        new_password = secrets.token_urlsafe(8)  # Например: YxZ9kjUQ
+        hashed_password = pwd_context.hash(new_password)
+        user.hashed_password = hashed_password
+
+        session.add(user)
+        session.commit()
+
+        try:
+            send_temporary_password_email(user.email, new_password)
+        except Exception as e:
+            print(f"[email error] {e}")
+            raise HTTPException(
+                status_code=500, detail="Не удалось отправить письмо"
+            )
+
+        return {"message": "Новый пароль отправлен на почту"}

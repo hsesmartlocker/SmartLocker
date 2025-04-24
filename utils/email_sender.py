@@ -55,3 +55,22 @@ def send_support_message(user_email: str, message: str):
     with smtplib.SMTP_SSL("smtp.yandex.ru", 465) as server:
         server.login(EMAIL_FROM, EMAIL_PASSWORD)
         server.send_message(msg)
+
+
+def send_temporary_password_email(to_email: str, new_password: str):
+    body = f"""
+Вы запросили сброс пароля в системе SmartLocker.
+
+Ваш новый временный пароль:
+{new_password}
+
+Пожалуйста, войдите в систему и смените пароль в настройках как можно скорее.
+"""
+    msg = MIMEText(body)
+    msg["Subject"] = "Временный пароль от SmartLocker"
+    msg["From"] = EMAIL_FROM
+    msg["To"] = to_email
+
+    with smtplib.SMTP_SSL("smtp.yandex.ru", 465) as server:
+        server.login(EMAIL_FROM, EMAIL_PASSWORD)
+        server.send_message(msg)
