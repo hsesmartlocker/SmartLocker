@@ -85,18 +85,17 @@ def get_my_requests(current_user: User = Depends(get_current_user)):
 
 
 @router.get("/all")
-def get_all_requests(
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user)
-):
-    if current_user.user_type != 3:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Доступ разрешён только администраторам"
-        )
+def get_all_requests(session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+    if current_user.type != 3:
+        raise HTTPException(status_code=403, detail="Нет доступа")
 
-    requests = session.exec(select(Request)).all()
-    return requests
+    query = (
+        select(Request)
+        .join(Item, Request.item_id == Item.id)
+        .where(Request.status == 1, Item.access_level == 2)
+    )
+    result = session.exec(query).all()
+    return result
 
 
 @router.post("/{request_id}/generate-code")
