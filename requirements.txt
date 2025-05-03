@@ -11,3 +11,5 @@ sqlalchemy~=2.0.40
 passlib~=1.7.4
 pydantic[email]
 authlib
+httpx
+itsdangerous
