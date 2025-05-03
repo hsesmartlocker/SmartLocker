@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi import APIRouter, HTTPException, Depends, status, requests
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel, EmailStr, constr
 from sqlmodel import Session, select
@@ -9,7 +9,6 @@ from datetime import datetime, timedelta
 import random
 import string
 from utils.email_sender import send_confirmation_email, send_temporary_password_email
-
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -197,10 +196,11 @@ def reset_password(
 class ResetPasswordSimpleRequest(BaseModel):
     email: str
 
+
 @router.post("/reset-password-simple")
 def reset_password_simple(
-    data: ResetPasswordSimpleRequest,
-    session: Session = Depends(get_session)
+        data: ResetPasswordSimpleRequest,
+        session: Session = Depends(get_session)
 ):
     email = data.email
     user = session.exec(select(User).where(User.email == email)).first()
@@ -221,19 +221,37 @@ def reset_password_simple(
 
     return {"message": "Новый пароль отправлен на почту"}
 
-@router.post("/hse-login")
-async def hse_login_via_email(payload: dict, session: Session = Depends(get_session)):
-    email = payload.get("email")
+
+@router.post("hse/token")
+async def login_with_hse_code(code: str, db: Session = Depends(get_session)):
+    # 1. Отправляем code в токен-эндпоинт напрямую
+    response = requests.post("https://profile.miem.hse.ru/auth/realms/MIEM/protocol/openid-connect/token", data={
+        "grant_type": "authorization_code",
+        "code": code,
+        "client_id": "19230-prj",
+        "redirect_uri": "https://1789.nas.helow19274.ru/auth/callback",
+        "client_secret": "твой_секрет",
+    })
+
+    if response.status_code != 200:
+        raise HTTPException(status_code=400, detail="Ошибка при получении токена")
+
+    access_token = response.json().get("access_token")
+
+    # 2. Получаем userinfo
+    userinfo = requests.get(
+        "https://profile.miem.hse.ru/auth/realms/MIEM/protocol/openid-connect/userinfo",
+        headers={"Authorization": f"Bearer {access_token}"}
+    ).json()
+
+    email = userinfo.get("email") or userinfo.get("email_hse")
     if not email:
-        raise HTTPException(status_code=400, detail="Email is required")
+        raise HTTPException(status_code=400, detail="Email не найден")
 
-    user = session.exec(select(User).where(User.email == email)).first()
+    user = db.query(User).filter(User.email == email).first()
     if not user:
-        # можно создать пользователя
-        user = User(email=email, user_type=1)
-        session.add(user)
-        session.commit()
-        session.refresh(user)
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
 
+    # 3. Выдаём JWT как обычно
     token = create_access_token({"sub": str(user.id)})
     return {"access_token": token}
