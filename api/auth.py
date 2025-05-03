@@ -32,6 +32,7 @@ class ConfirmData(BaseModel):
     email: str
     code: str
     password: str
+    name: str
 
 
 class ResetPasswordRequest(BaseModel):
@@ -167,9 +168,10 @@ def confirm_code(data: ConfirmData, session: Session = Depends(get_session)):
     new_user = User(
         email=data.email,
         password=data.password,
+        name=data.full_name,  # <-- добавлено
         active=True,
         email_verified=True,
-        user_type=user_type  # <- добавлено
+        user_type=user_type
     )
 
     session.add(new_user)
