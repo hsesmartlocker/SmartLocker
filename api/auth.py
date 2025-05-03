@@ -39,6 +39,12 @@ class ResetPasswordRequest(BaseModel):
     new_password: str
 
 
+class AuthException(Exception):
+    def __init__(self, detail: str, status_code: int = status.HTTP_401_UNAUTHORIZED):
+        self.detail = detail
+        self.status_code = status_code
+
+
 # ========================
 # Утилиты
 # ========================
@@ -49,8 +55,10 @@ def get_user_by_email(session: Session, email: str):
 def authenticate_user(email: str, password: str):
     with Session(engine) as session:
         user = get_user_by_email(session, email)
-        if not user or user.password != password:
-            return None
+        if not user:
+            raise AuthException(detail="Пользователь с таким email не найден")
+        if user.password != password:
+            raise AuthException(detail="Неверный пароль")
         return user
 
 
@@ -66,9 +74,11 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
 # ========================
 @router.post("/token", response_model=Token)
 def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    user = authenticate_user(form_data.username, form_data.password)
-    if not user:
-        raise HTTPException(status_code=401, detail="Incorrect email or password")
+    try:
+        user = authenticate_user(form_data.username, form_data.password)
+    except AuthException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+
     access_token = create_access_token(data={"sub": user.email})
     return {"access_token": access_token, "token_type": "bearer"}
 
