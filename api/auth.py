@@ -221,7 +221,7 @@ def reset_password_simple(
 
     return {"message": "Новый пароль отправлен на почту"}
 
-@router.post("/auth/hse-login")
+@router.post("/hse-login")
 async def hse_login_via_email(payload: dict, session: Session = Depends(get_session)):
     email = payload.get("email")
     if not email:
