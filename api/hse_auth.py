@@ -16,7 +16,7 @@ config = Config(".env")
 
 CLIENT_ID = "19230-prj"
 CLIENT_SECRET = os.environ.get("HSE_CLIENT_SECRET")
-REDIRECT_URI = "http://localhost:8000/auth/callback"  # измени на проде
+REDIRECT_URI = "https://1789.nas.helow19274.ru/auth/callback"  # измени на проде
 
 oauth = OAuth(config)
 oauth.register(

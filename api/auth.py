@@ -221,3 +221,19 @@ def reset_password_simple(
 
     return {"message": "Новый пароль отправлен на почту"}
 
+@router.post("/auth/hse-login")
+async def hse_login_via_email(payload: dict, session: Session = Depends(get_session)):
+    email = payload.get("email")
+    if not email:
+        raise HTTPException(status_code=400, detail="Email is required")
+
+    user = session.exec(select(User).where(User.email == email)).first()
+    if not user:
+        # можно создать пользователя
+        user = User(email=email, user_type=1)
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+
+    token = create_access_token({"sub": str(user.id)})
+    return {"access_token": token}
