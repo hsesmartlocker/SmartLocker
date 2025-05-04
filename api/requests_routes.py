@@ -8,6 +8,8 @@ from pydantic import BaseModel
 from utils.generate_postamat_code import generate_postamat_code
 from models import ArchivedRequest
 from utils.email_sender import send_admin_request_email, send_notification_email
+from typing import Optional
+
 
 router = APIRouter(prefix="/requests", tags=["Requests"])
 
@@ -117,33 +119,26 @@ def get_all_requests(current_user: User = Depends(get_current_user), session: Se
 
 class StatusUpdateData(BaseModel):
     request_id: int
-    status: int  # 2 = отклонено, 3 = разрешено
-
-
-from utils.email_sender import send_notification_email
-
-from models import ArchivedRequest  # не забудь импортировать модель!
+    status: int
+    reason: Optional[str] = None
 
 
 @router.post("/update-status")
 def update_request_status(
-        data: StatusUpdateData,
-        session: Session = Depends(get_session),
-        current_user: User = Depends(get_current_user)
+    data: StatusUpdateData,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
 ):
     if current_user.user_type != 3:
         raise HTTPException(status_code=403, detail="Доступ запрещён")
 
     request = session.exec(select(Request).where(Request.id == data.request_id)).first()
-
     if not request:
         raise HTTPException(status_code=404, detail="Заявка не найдена")
 
-    # Получаем пользователя
     user = session.exec(select(User).where(User.id == request.user)).first()
 
     if data.status == 2:
-        # Перенос в архив перед удалением
         archived = ArchivedRequest(
             user=request.user,
             item_id=request.item_id,
@@ -159,45 +154,48 @@ def update_request_status(
 
         if user and user.email:
             try:
+                body = (
+                    f"Здравствуйте!\n\n"
+                    f"Ваша заявка на бронирование оборудования была отклонена."
+                )
+                if data.reason:
+                    body += f"\nПричина: {data.reason}"
+                body += (
+                    "\n\nЕсли у вас возникли вопросы, просто ответьте на это письмо.\n\n"
+                    "С уважением,\nКоманда SmartLocker HSE"
+                )
                 send_notification_email(
                     to_email=user.email,
                     subject="Заявка отклонена",
-                    body=(
-                        f"Здравствуйте!\n\n"
-                        f"Ваша заявка на бронирование оборудования была рассмотрена, "
-                        f"но, к сожалению, мы не можем её одобрить в данный момент.\n\n"
-                        f"Если у вас возникли вопросы, просто ответьте на это письмо.\n\n"
-                        f"С уважением,\nКоманда SmartLocker HSE"
-                    )
+                    body=body
                 )
             except Exception as e:
                 print(f"[Ошибка при отправке письма] {e}")
 
-        return {"message": "Заявка перенесена в архив"}
+        return {"message": "Заявка отклонена и перенесена в архив"}
 
-    else:
-        request.status = data.status
-        session.add(request)
-        session.commit()
+    request.status = data.status
+    session.add(request)
+    session.commit()
 
-        if user and user.email and data.status == 3:
-            try:
-                send_notification_email(
-                    to_email=user.email,
-                    subject="Заявка одобрена — оборудование готово к получению",
-                    body=(
-                        f"Здравствуйте!\n\n"
-                        f"Ваша заявка на бронирование оборудования была одобрена.\n"
-                        f"Вы можете забрать оборудование в течение ближайших 24 часов.\n\n"
-                        f"Для получения используйте код из приложения и не забудьте ваш пропуск.\n\n"
-                        f"Если возникнут вопросы, напишите нам ответом на это письмо.\n\n"
-                        f"— Команда SmartLocker HSE"
-                    )
+    if user and user.email and data.status == 3:
+        try:
+            send_notification_email(
+                to_email=user.email,
+                subject="Заявка одобрена — оборудование готово к получению",
+                body=(
+                    f"Здравствуйте!\n\n"
+                    f"Ваша заявка на бронирование оборудования была одобрена.\n"
+                    f"Вы можете забрать оборудование в течение ближайших 24 часов.\n\n"
+                    f"Для получения используйте код из приложения и не забудьте ваш пропуск.\n\n"
+                    f"Если возникнут вопросы, напишите нам ответом на это письмо.\n\n"
+                    f"— Команда SmartLocker HSE"
                 )
-            except Exception as e:
-                print(f"[Ошибка при отправке письма] {e}")
+            )
+        except Exception as e:
+            print(f"[Ошибка при отправке письма] {e}")
 
-        return {"message": "Статус заявки обновлён"}
+    return {"message": "Статус заявки обновлён"}
 
 
 @router.post("/{request_id}/generate-code")
