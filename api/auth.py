@@ -286,7 +286,7 @@ def confirm_reset_code(data: ConfirmResetData):
         session.delete(record)
         session.commit()
 
-        send_confirmation_email(data.email, f"Ваш новый пароль: {new_password}")
+        send_temporary_password_email(data.email, new_password)
 
         return {"message": "Новый пароль отправлен на почту"}
 
