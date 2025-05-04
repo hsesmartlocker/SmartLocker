@@ -9,6 +9,12 @@ from datetime import datetime, timedelta
 import random
 import string
 from utils.email_sender import send_confirmation_email, send_temporary_password_email
+from passlib.context import CryptContext
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def get_password_hash(password: str) -> str:
+    return pwd_context.hash(password)
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -232,6 +238,52 @@ def reset_password_simple(
         raise HTTPException(status_code=500, detail="Ошибка при отправке письма")
 
     return {"message": "Новый пароль отправлен на почту"}
+
+
+@router.post("/reset-password/send-code")
+def send_reset_code(email: EmailStr):
+    code = ''.join(random.choices(string.digits, k=6))
+
+    # Сохраняем в базу
+    with Session(engine) as session:
+        existing = session.exec(
+            select(RegistrationCode).where(RegistrationCode.email == email)
+        ).first()
+        if existing:
+            existing.code = code
+        else:
+            session.add(RegistrationCode(email=email, code=code))
+        session.commit()
+
+    send_confirmation_email(email, code)
+    return {"message": "Код отправлен на почту"}
+
+
+@router.post("/reset-password/confirm-code")
+def confirm_reset_code(data: ConfirmData):
+    with Session(engine) as session:
+        record = session.exec(
+            select(RegistrationCode).where(RegistrationCode.email == data.email)
+        ).first()
+
+        if not record or record.code != data.code:
+            raise HTTPException(status_code=400, detail="Неверный код")
+
+        user = session.exec(
+            select(User).where(User.email == data.email)
+        ).first()
+
+        if not user:
+            raise HTTPException(status_code=404, detail="Пользователь не найден")
+
+        new_password = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
+        user.password = get_password_hash(new_password)
+        session.delete(record)
+        session.commit()
+
+        send_confirmation_email(data.email, f"Ваш новый пароль: {new_password}")
+
+        return {"message": "Новый пароль отправлен на почту"}
 
 
 @router.post("hse/token")

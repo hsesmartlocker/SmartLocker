@@ -3,7 +3,7 @@ from sqlmodel import Session, select
 from models import Request, Item, RequestStatus, User
 from database import engine
 from api.auth import get_current_user, get_session
-from datetime import datetime
+from datetime import datetime, timedelta
 from pydantic import BaseModel
 from utils.generate_postamat_code import generate_postamat_code
 from models import ArchivedRequest
@@ -34,28 +34,43 @@ def create_request(data: RequestCreate, current_user: User = Depends(get_current
                 status_code=400, detail=f"Не найден статус '{status_name}'"
             )
 
+        # Вычисляем срок возврата
+        if item.access_level == 1:
+            # автоматическая выдача — +3 дня до 21:00
+            planned_return_date = datetime.utcnow().replace(
+                hour=21, minute=0, second=0, microsecond=0
+            ) + timedelta(days=3)
+        else:
+            if not data.planned_return_date:
+                raise HTTPException(
+                    status_code=400, detail="Укажите срок возврата"
+                )
+            planned_return_date = data.planned_return_date.replace(
+                hour=21, minute=0, second=0, microsecond=0
+            ) + timedelta(days=1)  # добавляем 1 день
+
         request = Request(
             status=status.id,
             user=current_user.id,
             issued_by=current_user.id,
             created=datetime.utcnow(),
             comment=data.comment,
-            planned_return_date=data.planned_return_date,
+            planned_return_date=planned_return_date,
             item_id=data.item_id,
         )
+
         session.add(request)
         item.available = False
         session.add(item)
-
         session.commit()
 
-        # Отправляем письмо, если доступ не автоматический
+        # Отправка письма, если ручной доступ
         if item.access_level != 1:
             try:
                 send_admin_request_email(
                     user_email=current_user.email,
                     equipment_name=item.name,
-                    reason=data.comment
+                    reason=data.comment,
                 )
             except Exception as e:
                 print(f"[email error] Ошибка при отправке письма: {e}")
