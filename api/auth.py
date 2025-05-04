@@ -85,14 +85,16 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
 # Авторизация
 # ========================
 @router.post("/token", response_model=Token)
-def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    try:
-        user = authenticate_user(form_data.username, form_data.password)
-    except AuthException as e:
-        raise HTTPException(status_code=e.status_code, detail=e.detail)
+def login(email: str, password: str):
+    with Session(engine) as session:
+        user = get_user_by_email(session, email)
+        if not user:
+            raise AuthException(detail="Пользователь с таким email не найден")
 
-    access_token = create_access_token(data={"sub": user.email})
-    return {"access_token": access_token, "token_type": "bearer"}
+        if not pwd_context.verify(password, user.password):
+            raise AuthException(detail="Неверный пароль")
+
+        return user
 
 
 # ========================
