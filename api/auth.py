@@ -52,6 +52,11 @@ class AuthException(Exception):
         self.status_code = status_code
 
 
+class ConfirmResetData(BaseModel):
+    email: str
+    code: str
+
+
 # ========================
 # Утилиты
 # ========================
@@ -260,7 +265,7 @@ def send_reset_code(email: EmailStr):
 
 
 @router.post("/reset-password/confirm-code")
-def confirm_reset_code(data: ConfirmData):
+def confirm_reset_code(data: ConfirmResetData):
     with Session(engine) as session:
         record = session.exec(
             select(RegistrationCode).where(RegistrationCode.email == data.email)
