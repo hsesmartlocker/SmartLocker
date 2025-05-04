@@ -167,7 +167,8 @@ def confirm_code(data: ConfirmData, session: Session = Depends(get_session)):
     session.delete(code_entry)
     session.commit()
 
-    return {"message": "Регистрация завершена"}
+    access_token = create_access_token(data={"sub": data.email})
+    return {"access_token": access_token, "token_type": "bearer"}
 
 
 # ========================
