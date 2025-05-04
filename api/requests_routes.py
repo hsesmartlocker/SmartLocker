@@ -47,7 +47,7 @@ def create_request(data: RequestCreate, current_user: User = Depends(get_current
                 )
             planned_return_date = data.planned_return_date.replace(
                 hour=21, minute=0, second=0, microsecond=0
-            ) + timedelta(days=1)  # добавляем 1 день
+            )
 
         request = Request(
             status=status.id,
