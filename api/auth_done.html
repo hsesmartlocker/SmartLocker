@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>Авторизация завершена</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      padding: 40px;
+    }
+  </style>
+</head>
+<body>
+  <h2>Завершаем вход...</h2>
+  <p>Подождите несколько секунд, идет перенаправление</p>
+
+  <script>
+    const url = new URL(window.location.href);
+    const token = url.searchParams.get("token");
+
+    if (token) {
+      // ✅ Сохраняем токен в localStorage, если нужно:
+      localStorage.setItem("smartlocker_token", token);
+
+      // ✅ Можно использовать postMessage, если ты во WebView:
+      // window.opener?.postMessage({ token }, "*");
+
+      // ✅ Перенаправляем обратно в приложение или на главную:
+      window.location.href = "smartlocker://callback?token=" + token;
+      // или, если нет deeplink, можно просто:
+      // window.location.href = "/app";  // или "/booking"
+    } else {
+      document.body.innerHTML = "<h2>Ошибка: токен не найден</h2>";
+    }
+  </script>
+</body>
+</html>

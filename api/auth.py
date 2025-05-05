@@ -1,11 +1,13 @@
 from fastapi import APIRouter, HTTPException, Depends, status, requests, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.responses import RedirectResponse, HTMLResponse
 from pydantic import BaseModel, EmailStr
 from sqlmodel import Session, select
 from models import User, RegistrationCode
 from database import get_session, engine
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
+from typing import Optional
 import random
 import string
 from utils.email_sender import send_confirmation_email, send_temporary_password_email
@@ -105,32 +107,14 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
 #     return {"access_token": access_token, "token_type": "bearer"}
 
 
-from fastapi import APIRouter, Request, HTTPException
-from fastapi.responses import JSONResponse
-from sqlmodel import select
-from app.db import get_session
-from app.models import User
-from app.auth import create_access_token
-import httpx
-
-router = APIRouter()
-
-# ваши настройки
-TOKEN_URL = "https://profile.miem.hse.ru/auth/realms/MIEM/protocol/openid-connect/token"
-USERINFO_URL = "https://profile.miem.hse.ru/auth/realms/MIEM/protocol/openid-connect/userinfo"
-CLIENT_ID = "19230-prj"
-CLIENT_SECRET = "YOUR_SECRET_HERE"
-REDIRECT_URI = "https://hsesmartlocker.ru/auth/token"
-
-
 @router.get("/token")
-async def handle_hse_redirect(request: Request):
+async def handle_hse_redirect(request: Request, db: Session = Depends(get_session)):
     code = request.query_params.get("code")
     if not code:
-        raise HTTPException(status_code=400, detail="Missing code from HSE redirect")
+        raise HTTPException(status_code=400, detail="Missing code")
 
     async with httpx.AsyncClient() as client:
-        # Шаг 1: обмен кода на токен
+        # Получаем access_token по коду
         token_resp = await client.post(
             TOKEN_URL,
             data={
@@ -144,50 +128,76 @@ async def handle_hse_redirect(request: Request):
         )
 
         if token_resp.status_code != 200:
-            raise HTTPException(status_code=401, detail="Failed to get token from HSE")
+            raise HTTPException(status_code=401, detail="Ошибка получения токена")
 
         access_token = token_resp.json().get("access_token")
         if not access_token:
-            raise HTTPException(status_code=401, detail="Missing access_token")
+            raise HTTPException(status_code=401, detail="Токен не получен")
 
-        # Шаг 2: получение информации о пользователе
+        # Получаем информацию о пользователе
         userinfo_resp = await client.get(
             USERINFO_URL,
             headers={"Authorization": f"Bearer {access_token}"},
         )
 
         if userinfo_resp.status_code != 200:
-            raise HTTPException(status_code=401, detail="Failed to get user info")
+            raise HTTPException(status_code=401, detail="Ошибка получения профиля")
 
         user_data = userinfo_resp.json()
-        email = user_data.get("email")
-        name = user_data.get("full_name") or user_data.get("given_name") or "Пользователь"
 
-        if not email:
-            raise HTTPException(status_code=400, detail="Email not found in user info")
+    email = user_data.get("email")
+    name = user_data.get("full_name", "")
+    if not email:
+        raise HTTPException(status_code=400, detail="Email не найден")
 
-    # Шаг 3: Проверка и регистрация пользователя
-    async with get_session() as session:
-        result = await session.execute(select(User).where(User.email == email))
-        user = result.scalar_one_or_none()
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        user = User(email=email, name=name, user_type=2)
+        db.add(user)
+        db.commit()
+        db.refresh(user)
 
-        if not user:
-            user_type = 1  # например, студент по умолчанию
-            if email.endswith("@hse.ru"):
-                user_type = 2  # сотрудник
+    jwt_token = create_access_token({"sub": user.email})  # твоя функция генерации токена
 
-            user = User(
-                email=email,
-                name=name,
-                user_type=user_type
-            )
-            session.add(user)
-            await session.commit()
-            await session.refresh(user)
+    return RedirectResponse(f"https://hsesmartlocker.ru/auth/done?token={jwt_token}")
 
-        # Шаг 4: выдача JWT
-        jwt_token = create_access_token(user.id)
-        return JSONResponse({"access_token": jwt_token})
+
+@router.get("/done", response_class=HTMLResponse)
+def auth_done(token: Optional[str] = None):
+    if not token:
+        return HTMLResponse("<h2>Ошибка: токен не найден</h2>", status_code=400)
+
+    html = f"""
+    <!DOCTYPE html>
+    <html lang="ru">
+    <head>
+      <meta charset="UTF-8" />
+      <title>Авторизация завершена</title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <style>
+        body {{
+          font-family: sans-serif;
+          text-align: center;
+          padding: 40px;
+        }}
+      </style>
+    </head>
+    <body>
+      <h2>Завершаем вход...</h2>
+      <p>Подождите, идет перенаправление</p>
+
+      <script>
+        const token = "{token}";
+        // Сохраняем в localStorage (если хочешь)
+        localStorage.setItem("smartlocker_token", token);
+
+        // ✅ Перенаправляем обратно в приложение по deeplink
+        window.location.href = "smartlocker://callback?token=" + token;
+      </script>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html)
 
 
 # ========================
