@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, status, requests
+from fastapi import APIRouter, HTTPException, Depends, status, requests, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel, EmailStr
 from sqlmodel import Session, select
@@ -10,6 +10,9 @@ import random
 import string
 from utils.email_sender import send_confirmation_email, send_temporary_password_email
 from passlib.context import CryptContext
+import httpx
+import os
+
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -19,6 +22,12 @@ SECRET_KEY = "smartlocker-secret-key"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
+
+CLIENT_ID = "19230-prj"
+CLIENT_SECRET = os.getenv("HSE_CLIENT_SECRET")  # безопасно хранить в .env
+REDIRECT_URI = "https://hsesmartlocker.ru/auth/token"
+TOKEN_URL = "https://profile.miem.hse.ru/auth/realms/MIEM/protocol/openid-connect/token"
+USERINFO_URL = "https://profile.miem.hse.ru/auth/realms/MIEM/protocol/openid-connect/userinfo"
 
 
 # ========================
@@ -48,6 +57,10 @@ class ResetPasswordRequest(BaseModel):
 
 class ResetPasswordSimpleRequest(BaseModel):
     email: str
+
+
+class TokenRequest(BaseModel):
+    code: str
 
 
 # ========================
@@ -85,11 +98,58 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
 # ========================
 # АВТОРИЗАЦИЯ
 # ========================
-@router.post("/token", response_model=Token)
-def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    user = authenticate_user(form_data.username, form_data.password)
-    access_token = create_access_token(data={"sub": user.email})
-    return {"access_token": access_token, "token_type": "bearer"}
+# @router.post("/token", response_model=Token)
+# def login(form_data: OAuth2PasswordRequestForm = Depends()):
+#     user = authenticate_user(form_data.username, form_data.password)
+#     access_token = create_access_token(data={"sub": user.email})
+#     return {"access_token": access_token, "token_type": "bearer"}
+
+
+@router.get("/token")
+async def handle_hse_redirect(request: Request):
+    code = request.query_params.get("code")
+    if not code:
+        raise HTTPException(status_code=400, detail="Missing code from HSE redirect")
+
+    async with httpx.AsyncClient() as client:
+        # Обмен кода на токен
+        token_resp = await client.post(
+            TOKEN_URL,
+            data={
+                "grant_type": "authorization_code",
+                "client_id": CLIENT_ID,
+                "client_secret": CLIENT_SECRET,
+                "code": code,
+                "redirect_uri": REDIRECT_URI,
+            },
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+
+        if token_resp.status_code != 200:
+            raise HTTPException(status_code=401, detail="Failed to get token from HSE")
+
+        token_data = token_resp.json()
+        access_token = token_data.get("access_token")
+        if not access_token:
+            raise HTTPException(status_code=401, detail="No access token in HSE response")
+
+        # Получение информации о пользователе
+        userinfo_resp = await client.get(
+            USERINFO_URL,
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+
+        if userinfo_resp.status_code != 200:
+            raise HTTPException(status_code=401, detail="Failed to get user info")
+
+        user_data = userinfo_resp.json()
+
+        print(user_data)
+        # Здесь можно сохранить или найти пользователя в БД, выдать JWT, и т.д.
+        # Например, редирект на клиент с JWT в query string:
+        # return RedirectResponse(f"https://app.smartlocker.hse.ru/callback?token={jwt_token}")
+
+        return user_data  # временно показываем данные напрямую (для теста)
 
 
 # ========================
@@ -176,9 +236,9 @@ def confirm_code(data: ConfirmData, session: Session = Depends(get_session)):
 # ========================
 @router.post("/reset-password")
 def reset_password(
-    data: ResetPasswordRequest,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user)
+        data: ResetPasswordRequest,
+        session: Session = Depends(get_session),
+        current_user: User = Depends(get_current_user)
 ):
     user = session.exec(select(User).where(User.email == current_user.email)).first()
     if not user:
