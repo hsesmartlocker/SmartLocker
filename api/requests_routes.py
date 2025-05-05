@@ -93,6 +93,7 @@ def get_my_requests(current_user: User = Depends(get_current_user)):
             result.append({
                 "id": req.id,
                 "item_name": item.name if item else "Оборудование",
+                "item_specs": item.specifications if item else "Характеристики недоступны",
                 "status": status.name if status else "Неизвестно",
                 "planned_return_date": req.planned_return_date.isoformat() if req.planned_return_date else None,
             })
