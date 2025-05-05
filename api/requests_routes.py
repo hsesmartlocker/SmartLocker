@@ -10,7 +10,6 @@ from models import ArchivedRequest
 from utils.email_sender import send_admin_request_email, send_notification_email
 from typing import Optional
 
-
 router = APIRouter(prefix="/requests", tags=["Requests"])
 
 
@@ -95,8 +94,7 @@ def get_my_requests(current_user: User = Depends(get_current_user)):
                 "id": req.id,
                 "item_name": item.name if item else "Оборудование",
                 "status": status.name if status else "Неизвестно",
-                "planned_return_date": req.planned_return_date.strftime(
-                    '%Y-%m-%d') if req.planned_return_date else None,
+                "planned_return_date": req.planned_return_date.isoformat() if req.planned_return_date else None,
             })
         return result
 
@@ -125,9 +123,9 @@ class StatusUpdateData(BaseModel):
 
 @router.post("/update-status")
 def update_request_status(
-    data: StatusUpdateData,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user)
+        data: StatusUpdateData,
+        session: Session = Depends(get_session),
+        current_user: User = Depends(get_current_user)
 ):
     if current_user.user_type != 3:
         raise HTTPException(status_code=403, detail="Доступ запрещён")
