@@ -105,6 +105,24 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
 #     return {"access_token": access_token, "token_type": "bearer"}
 
 
+from fastapi import APIRouter, Request, HTTPException
+from fastapi.responses import JSONResponse
+from sqlmodel import select
+from app.db import get_session
+from app.models import User
+from app.auth import create_access_token
+import httpx
+
+router = APIRouter()
+
+# ваши настройки
+TOKEN_URL = "https://profile.miem.hse.ru/auth/realms/MIEM/protocol/openid-connect/token"
+USERINFO_URL = "https://profile.miem.hse.ru/auth/realms/MIEM/protocol/openid-connect/userinfo"
+CLIENT_ID = "19230-prj"
+CLIENT_SECRET = "YOUR_SECRET_HERE"
+REDIRECT_URI = "https://hsesmartlocker.ru/auth/token"
+
+
 @router.get("/token")
 async def handle_hse_redirect(request: Request):
     code = request.query_params.get("code")
@@ -112,7 +130,7 @@ async def handle_hse_redirect(request: Request):
         raise HTTPException(status_code=400, detail="Missing code from HSE redirect")
 
     async with httpx.AsyncClient() as client:
-        # Обмен кода на токен
+        # Шаг 1: обмен кода на токен
         token_resp = await client.post(
             TOKEN_URL,
             data={
@@ -128,12 +146,11 @@ async def handle_hse_redirect(request: Request):
         if token_resp.status_code != 200:
             raise HTTPException(status_code=401, detail="Failed to get token from HSE")
 
-        token_data = token_resp.json()
-        access_token = token_data.get("access_token")
+        access_token = token_resp.json().get("access_token")
         if not access_token:
-            raise HTTPException(status_code=401, detail="No access token in HSE response")
+            raise HTTPException(status_code=401, detail="Missing access_token")
 
-        # Получение информации о пользователе
+        # Шаг 2: получение информации о пользователе
         userinfo_resp = await client.get(
             USERINFO_URL,
             headers={"Authorization": f"Bearer {access_token}"},
@@ -143,13 +160,34 @@ async def handle_hse_redirect(request: Request):
             raise HTTPException(status_code=401, detail="Failed to get user info")
 
         user_data = userinfo_resp.json()
+        email = user_data.get("email")
+        name = user_data.get("full_name") or user_data.get("given_name") or "Пользователь"
 
-        print(user_data)
-        # Здесь можно сохранить или найти пользователя в БД, выдать JWT, и т.д.
-        # Например, редирект на клиент с JWT в query string:
-        # return RedirectResponse(f"https://app.smartlocker.hse.ru/callback?token={jwt_token}")
+        if not email:
+            raise HTTPException(status_code=400, detail="Email not found in user info")
 
-        return user_data  # временно показываем данные напрямую (для теста)
+    # Шаг 3: Проверка и регистрация пользователя
+    async with get_session() as session:
+        result = await session.execute(select(User).where(User.email == email))
+        user = result.scalar_one_or_none()
+
+        if not user:
+            user_type = 1  # например, студент по умолчанию
+            if email.endswith("@hse.ru"):
+                user_type = 2  # сотрудник
+
+            user = User(
+                email=email,
+                name=name,
+                user_type=user_type
+            )
+            session.add(user)
+            await session.commit()
+            await session.refresh(user)
+
+        # Шаг 4: выдача JWT
+        jwt_token = create_access_token(user.id)
+        return JSONResponse({"access_token": jwt_token})
 
 
 # ========================
