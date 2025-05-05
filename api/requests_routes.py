@@ -38,9 +38,9 @@ def create_request(data: RequestCreate, current_user: User = Depends(get_current
 
         # Вычисляем срок возврата
         if item.access_level == 1:
-            # автоматическая выдача — +3 дня до 21:00
+            # автоматическая выдача — +3 дня до 18:00 (без учета временного пояса)
             planned_return_date = datetime.utcnow().replace(
-                hour=21, minute=0, second=0, microsecond=0
+                hour=18, minute=0, second=0, microsecond=0
             ) + timedelta(days=3)
         else:
             if not data.planned_return_date:
@@ -48,7 +48,7 @@ def create_request(data: RequestCreate, current_user: User = Depends(get_current
                     status_code=400, detail="Укажите срок возврата"
                 )
             planned_return_date = data.planned_return_date.replace(
-                hour=21, minute=0, second=0, microsecond=0
+                hour=18, minute=0, second=0, microsecond=0
             )
 
         request = Request(
