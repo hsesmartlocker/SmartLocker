@@ -18,8 +18,8 @@ def get_all_items(current_user=Depends(get_current_user)):
 
 @router.get("/available", response_model=List[Item])
 def get_available_items(
-    session: Session = Depends(get_session),
-    current_user=Depends(get_current_user)
+        session: Session = Depends(get_session),
+        current_user=Depends(get_current_user)
 ):
     free_status = session.exec(
         select(ItemStatus).where(ItemStatus.name == "Свободен")
@@ -49,9 +49,9 @@ class AdminBookingRequest(BaseModel):
 
 @router.post("/request-via-email")
 def request_item_via_email(
-    request: AdminBookingRequest,
-    session: Session = Depends(get_session),
-    current_user=Depends(get_current_user)
+        request: AdminBookingRequest,
+        session: Session = Depends(get_session),
+        current_user=Depends(get_current_user)
 ):
     item = session.exec(select(Item).where(Item.id == request.item_id)).first()
     if not item:
@@ -77,7 +77,8 @@ def delete_item(data: dict, db: Session = Depends(get_session)):
     if not item:
         raise HTTPException(status_code=404, detail="Предмет не найден")
 
-    has_requests = db.query(Request).filter(Request.item_id == item_id, Request.status.in_(['создана', 'на рассмотрении', 'выдано', 'ожидает возврата'])).first()
+    has_requests = db.query(Request).filter(Request.item_id == item_id, Request.status.in_(
+        ['создана', 'на рассмотрении', 'выдано', 'ожидает возврата'])).first()
 
     if has_requests:
         raise HTTPException(status_code=400, detail="Невозможно удалить: предмет используется в заявке")
@@ -88,28 +89,33 @@ def delete_item(data: dict, db: Session = Depends(get_session)):
 
 
 @router.post("/broke")
-def toggle_broken_item(data: dict, db: Session = Depends(get_session)):
+def toggle_broken_item(data: dict, session: Session = Depends(get_session)):
     item_id = data.get("item_id")
-    item = db.query(Item).filter(Item.id == item_id).first()
+    if not item_id:
+        raise HTTPException(status_code=400, detail="Не указан ID предмета")
 
+    item = session.get(Item, item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Предмет не найден")
 
-    # Статус: 1 — свободно, 3 — сломано
-    if item.status == 1:
+    # Освобождаем ячейку, если нужно
+    if item.status == 1:  # свободно → сломано
         item.status = 3
-    elif item.status == 3:
+        if item.cell:
+            cell = session.get(Cell, item.cell)
+            if cell:
+                cell.is_free = True
+
+    elif item.status == 3:  # сломано → свободно
         item.status = 1
+
     else:
-        raise HTTPException(status_code=400, detail="Можно переключать только свободные или сломанные предметы")
+        raise HTTPException(status_code=400, detail="Нельзя изменить статус")
 
-    # Освобождаем ячейку
-    if item.cell:
-        item.cell.is_free = True
-        item.cell_id = None
+    session.add(item)
+    session.commit()
 
-    db.commit()
-    return {"success": True, "new_status": item.status}
+    return {"message": "Статус обновлён", "status": item.status}
 
 
 @router.post("/change_cell")
@@ -126,11 +132,12 @@ def change_cell(data: dict, db: Session = Depends(get_session)):
     if not new_cell.is_free:
         raise HTTPException(status_code=400, detail="Ячейка уже занята")
 
-    # Освобождаем старую ячейку
-    if item.cell:
-        item.cell.is_free = True
+    if item.cell_id:
+        old_cell = db.query(Cell).filter(Cell.id == item.cell_id).first()
+        if old_cell:
+            old_cell.is_free = True
 
-    # Назначаем новую
+    # Назначаем новую ячейку
     item.cell_id = new_cell_id
     new_cell.is_free = False
 
