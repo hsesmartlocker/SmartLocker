@@ -153,3 +153,30 @@ def change_cell(data: dict, db: Session = Depends(get_session)):
 
     db.commit()
     return {"success": True}
+
+
+@router.post("/items/new")
+def create_item(data: dict, db: Session = Depends(get_session)):
+    required_fields = ['inv_key', 'name', 'status', 'owner', 'available', 'access_level', 'specifications']
+    for field in required_fields:
+        if field not in data:
+            raise HTTPException(status_code=400, detail=f"Отсутствует поле {field}")
+
+    cell_id = data.get("cell")
+    if cell_id is not None:
+        cell = db.get(Cell, cell_id)
+        if not cell:
+            raise HTTPException(status_code=404, detail="Ячейка не найдена")
+        if not cell.is_free:
+            raise HTTPException(status_code=400, detail="Ячейка занята")
+
+    new_item = Item(**data)
+    db.add(new_item)
+
+    # если предмет кладем в ячейку, то сразу ее занимаем
+    if cell_id is not None:
+        cell.is_free = False
+
+    db.commit()
+    db.refresh(new_item)
+    return {"success": True, "item_id": new_item.id}
