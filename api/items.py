@@ -142,13 +142,13 @@ def change_cell(data: dict, db: Session = Depends(get_session)):
     if not new_cell.is_free:
         raise HTTPException(status_code=400, detail="Ячейка уже занята")
 
-    if item.cell_id:
-        old_cell = db.query(Cell).filter(Cell.id == item.cell_id).first()
+    if item.cell:
+        old_cell = db.query(Cell).filter(Cell.id == item.cell).first()
         if old_cell:
             old_cell.is_free = True
 
     # Назначаем новую ячейку
-    item.cell_id = new_cell_id
+    item.cell = new_cell_id
     new_cell.is_free = False
 
     db.commit()
