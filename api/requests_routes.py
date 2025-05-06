@@ -108,8 +108,6 @@ def get_all_requests(current_user: User = Depends(get_current_user), session: Se
     statement = (
         select(Request)
         .join(Item, Request.item_id == Item.id)
-        .where(Request.status == 1)
-        .where(Item.access_level == 2)
     )
     requests = session.exec(statement).all()
 
