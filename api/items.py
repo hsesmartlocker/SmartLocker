@@ -155,7 +155,7 @@ def change_cell(data: dict, db: Session = Depends(get_session)):
     return {"success": True}
 
 
-@router.post("/items/new")
+@router.post("/new")
 def create_item(data: dict, db: Session = Depends(get_session)):
     required_fields = ['inv_key', 'name', 'status', 'owner', 'available', 'access_level', 'specifications']
     for field in required_fields:
