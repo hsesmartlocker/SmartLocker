@@ -89,6 +89,12 @@ def delete_item(data: dict, db: Session = Depends(get_session)):
     if active_request:
         raise HTTPException(status_code=400, detail="Нельзя удалить: есть активная заявка")
 
+    # Освобождаем ячейку
+    if item.cell_id:
+        cell = db.query(Cell).filter(Cell.id == item.cell_id).first()
+        if cell:
+            cell.is_free = True
+
     db.delete(item)
     db.commit()
     return {"success": True}
