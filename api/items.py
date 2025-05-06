@@ -1,3 +1,5 @@
+from zoneinfo import available_timezones
+
 from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlmodel import Session, select
 from models import Request, Item, ItemStatus, Cell
@@ -113,8 +115,10 @@ def toggle_broken_item(data: dict, session: Session = Depends(get_session)):
     # Освобождаем ячейку, если нужно
     if item.status == 1:  # свободно → сломано
         item.status = 3
+        item.available = False
     elif item.status == 3:  # сломано → свободно
         item.status = 1
+        item.available = True
     else:
         raise HTTPException(status_code=400, detail="Нельзя изменить статус")
 
