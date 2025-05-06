@@ -100,66 +100,66 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
 # ========================
 # АВТОРИЗАЦИЯ
 # ========================
-# @router.post("/token", response_model=Token)
-# def login(form_data: OAuth2PasswordRequestForm = Depends()):
-#     user = authenticate_user(form_data.username, form_data.password)
-#     access_token = create_access_token(data={"sub": user.email})
-#     return {"access_token": access_token, "token_type": "bearer"}
+@router.post("/token", response_model=Token)
+def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    user = authenticate_user(form_data.username, form_data.password)
+    access_token = create_access_token(data={"sub": user.email})
+    return {"access_token": access_token, "token_type": "bearer"}
 
 
-@router.get("/token")
-async def handle_hse_redirect(request: Request, db: Session = Depends(get_session)):
-    code = request.query_params.get("code")
-    if not code:
-        raise HTTPException(status_code=400, detail="Missing code")
-
-    async with httpx.AsyncClient() as client:
-        # Получаем access_token по коду
-        token_resp = await client.post(
-            TOKEN_URL,
-            data={
-                "grant_type": "authorization_code",
-                "client_id": CLIENT_ID,
-                "client_secret": CLIENT_SECRET,
-                "code": code,
-                "redirect_uri": REDIRECT_URI,
-            },
-            headers={"Content-Type": "application/x-www-form-urlencoded"},
-        )
-
-        if token_resp.status_code != 200:
-            raise HTTPException(status_code=401, detail="Ошибка получения токена")
-
-        access_token = token_resp.json().get("access_token")
-        if not access_token:
-            raise HTTPException(status_code=401, detail="Токен не получен")
-
-        # Получаем информацию о пользователе
-        userinfo_resp = await client.get(
-            USERINFO_URL,
-            headers={"Authorization": f"Bearer {access_token}"},
-        )
-
-        if userinfo_resp.status_code != 200:
-            raise HTTPException(status_code=401, detail="Ошибка получения профиля")
-
-        user_data = userinfo_resp.json()
-
-    email = user_data.get("email")
-    name = user_data.get("full_name", "")
-    if not email:
-        raise HTTPException(status_code=400, detail="Email не найден")
-
-    user = db.query(User).filter(User.email == email).first()
-    if not user:
-        user = User(email=email, name=name, user_type=2)
-        db.add(user)
-        db.commit()
-        db.refresh(user)
-
-    jwt_token = create_access_token({"sub": user.email})  # твоя функция генерации токена
-
-    return RedirectResponse(f"https://hsesmartlocker.ru/auth/done?token={jwt_token}")
+# @router.get("/token")
+# async def handle_hse_redirect(request: Request, db: Session = Depends(get_session)):
+#     code = request.query_params.get("code")
+#     if not code:
+#         raise HTTPException(status_code=400, detail="Missing code")
+#
+#     async with httpx.AsyncClient() as client:
+#         # Получаем access_token по коду
+#         token_resp = await client.post(
+#             TOKEN_URL,
+#             data={
+#                 "grant_type": "authorization_code",
+#                 "client_id": CLIENT_ID,
+#                 "client_secret": CLIENT_SECRET,
+#                 "code": code,
+#                 "redirect_uri": REDIRECT_URI,
+#             },
+#             headers={"Content-Type": "application/x-www-form-urlencoded"},
+#         )
+#
+#         if token_resp.status_code != 200:
+#             raise HTTPException(status_code=401, detail="Ошибка получения токена")
+#
+#         access_token = token_resp.json().get("access_token")
+#         if not access_token:
+#             raise HTTPException(status_code=401, detail="Токен не получен")
+#
+#         # Получаем информацию о пользователе
+#         userinfo_resp = await client.get(
+#             USERINFO_URL,
+#             headers={"Authorization": f"Bearer {access_token}"},
+#         )
+#
+#         if userinfo_resp.status_code != 200:
+#             raise HTTPException(status_code=401, detail="Ошибка получения профиля")
+#
+#         user_data = userinfo_resp.json()
+#
+#     email = user_data.get("email")
+#     name = user_data.get("full_name", "")
+#     if not email:
+#         raise HTTPException(status_code=400, detail="Email не найден")
+#
+#     user = db.query(User).filter(User.email == email).first()
+#     if not user:
+#         user = User(email=email, name=name, user_type=2)
+#         db.add(user)
+#         db.commit()
+#         db.refresh(user)
+#
+#     jwt_token = create_access_token({"sub": user.email})  # твоя функция генерации токена
+#
+#     return RedirectResponse(f"https://hsesmartlocker.ru/auth/done?token={jwt_token}")
 
 
 @router.get("/done", response_class=HTMLResponse)
