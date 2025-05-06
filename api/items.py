@@ -69,7 +69,7 @@ def request_item_via_email(
     return {"message": "Заявка успешно отправлена. Мы уведомим вас в течение 24 часов."}
 
 
-@router.post("/items/delete")
+@router.post("/delete")
 def delete_item(data: dict, db: Session = Depends(get_session)):
     item_id = data.get("item_id")
     item = db.query(Item).filter(Item.id == item_id).first()
@@ -87,7 +87,7 @@ def delete_item(data: dict, db: Session = Depends(get_session)):
     return {"success": True}
 
 
-@router.post("/items/broke")
+@router.post("/broke")
 def toggle_broken_item(data: dict, db: Session = Depends(get_session)):
     item_id = data.get("item_id")
     item = db.query(Item).filter(Item.id == item_id).first()
@@ -112,7 +112,7 @@ def toggle_broken_item(data: dict, db: Session = Depends(get_session)):
     return {"success": True, "new_status": item.status}
 
 
-@router.post("/items/change_cell")
+@router.post("/change_cell")
 def change_cell(data: dict, db: Session = Depends(get_session)):
     item_id = data.get("item_id")
     new_cell_id = data.get("cell_id")
