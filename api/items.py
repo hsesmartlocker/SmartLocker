@@ -107,14 +107,8 @@ def toggle_broken_item(data: dict, session: Session = Depends(get_session)):
     # Освобождаем ячейку, если нужно
     if item.status == 1:  # свободно → сломано
         item.status = 3
-        if item.cell:
-            cell = session.get(Cell, item.cell)
-            if cell:
-                cell.is_free = True
-
     elif item.status == 3:  # сломано → свободно
         item.status = 1
-
     else:
         raise HTTPException(status_code=400, detail="Нельзя изменить статус")
 
