@@ -72,16 +72,22 @@ def request_item_via_email(
 @router.post("/delete")
 def delete_item(data: dict, db: Session = Depends(get_session)):
     item_id = data.get("item_id")
+
     item = db.query(Item).filter(Item.id == item_id).first()
-
     if not item:
-        raise HTTPException(status_code=404, detail="Предмет не найден")
+        raise HTTPException(status_code=404, detail="Оборудование не найдено")
 
-    has_requests = db.query(Request).filter(Request.item_id == item_id, Request.status.in_(
-        ['создана', 'на рассмотрении', 'выдано', 'ожидает возврата'])).first()
+    # Активные статусы:
+    active_status_ids = [1, 3, 4, 5, 7]
 
-    if has_requests:
-        raise HTTPException(status_code=400, detail="Невозможно удалить: предмет используется в заявке")
+    active_request = (
+        db.query(Request)
+        .filter(Request.item_id == item_id, Request.status.in_(active_status_ids))
+        .first()
+    )
+
+    if active_request:
+        raise HTTPException(status_code=400, detail="Нельзя удалить: есть активная заявка")
 
     db.delete(item)
     db.commit()
