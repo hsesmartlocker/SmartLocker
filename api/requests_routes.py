@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 from models import Request, Item, RequestStatus, User
 from database import engine
@@ -35,9 +35,7 @@ def create_request(data: RequestCreate, current_user: User = Depends(get_current
                 status_code=400, detail=f"Не найден статус '{status_name}'"
             )
 
-        # Вычисляем срок возврата
         if item.access_level == 1:
-            # автоматическая выдача — +3 дня до 18:00 (без учета временного пояса)
             planned_return_date = datetime.utcnow().replace(
                 hour=18, minute=0, second=0, microsecond=0
             ) + timedelta(days=3)
@@ -50,6 +48,12 @@ def create_request(data: RequestCreate, current_user: User = Depends(get_current
                 hour=18, minute=0, second=0, microsecond=0
             )
 
+        if item.access_level == 1:
+            item.status = 2
+        else:
+            item.status = 4
+        item.available = False
+
         request = Request(
             status=status.id,
             user=current_user.id,
@@ -61,11 +65,9 @@ def create_request(data: RequestCreate, current_user: User = Depends(get_current
         )
 
         session.add(request)
-        item.available = False
         session.add(item)
         session.commit()
 
-        # Отправка письма, если ручной доступ
         if item.access_level != 1:
             try:
                 send_admin_request_email(
@@ -134,6 +136,7 @@ def update_request_status(
         raise HTTPException(status_code=404, detail="Заявка не найдена")
 
     user = session.exec(select(User).where(User.id == request.user)).first()
+    item = session.get(Item, request.item_id)
 
     if data.status == 2:
         archived = ArchivedRequest(
@@ -172,6 +175,12 @@ def update_request_status(
         return {"message": "Заявка отклонена и перенесена в архив"}
 
     request.status = data.status
+
+    if data.status == 3 and item:
+        item.status = 2  # Выдан
+        item.available = False
+        session.add(item)
+
     session.add(request)
     session.commit()
 
@@ -222,6 +231,7 @@ def cancel_request(request_id: int, current_user: User = Depends(get_current_use
         item = session.get(Item, request.item_id)
         if item:
             item.available = True
+            item.status = 1
             session.add(item)
 
         # Статус "Отменена"
@@ -232,15 +242,12 @@ def cancel_request(request_id: int, current_user: User = Depends(get_current_use
         if not status:
             raise HTTPException(status_code=400, detail="Не найден статус 'Отменена'")
 
-        # Обновим статус
         request.status = status.id
         session.commit()
 
-        # Скопируем в архив
         archived = ArchivedRequest.from_orm(request)
         session.add(archived)
 
-        # Удалим из основной таблицы
         session.delete(request)
         session.commit()
 

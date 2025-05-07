@@ -1,5 +1,3 @@
-from zoneinfo import available_timezones
-
 from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlmodel import Session, select
 from models import Request, Item, ItemStatus, Cell
@@ -49,28 +47,6 @@ class AdminBookingRequest(BaseModel):
     reason: str
 
 
-@router.post("/request-via-email")
-def request_item_via_email(
-        request: AdminBookingRequest,
-        session: Session = Depends(get_session),
-        current_user=Depends(get_current_user)
-):
-    item = session.exec(select(Item).where(Item.id == request.item_id)).first()
-    if not item:
-        raise HTTPException(status_code=404, detail="Оборудование не найдено")
-
-    try:
-        send_admin_request_email(
-            user_email=current_user.email,
-            equipment_name=item.name,
-            reason=request.reason
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Не удалось отправить письмо: {str(e)}")
-
-    return {"message": "Заявка успешно отправлена. Мы уведомим вас в течение 24 часов."}
-
-
 @router.post("/delete")
 def delete_item(data: dict, db: Session = Depends(get_session)):
     item_id = data.get("item_id")
@@ -112,11 +88,10 @@ def toggle_broken_item(data: dict, session: Session = Depends(get_session)):
     if not item:
         raise HTTPException(status_code=404, detail="Предмет не найден")
 
-    # Освобождаем ячейку, если нужно
-    if item.status == 1:  # свободно → сломано
+    if item.status == 1:
         item.status = 3
         item.available = False
-    elif item.status == 3:  # сломано → свободно
+    elif item.status == 3:
         item.status = 1
         item.available = True
     else:
