@@ -312,7 +312,7 @@ def change_return_date(
             body = (
                 f"Здравствуйте, {user.name or 'пользователь'}!\n\n"
                 f"Срок возврата оборудования \"{item.name}\" по вашей заявке был изменён администратором.\n\n"
-                f"Новая дата возврата: {formatted_date} до 18:00.\n\n"
+                f"Новая дата возврата: {formatted_date} до 21:00.\n\n"
                 f"Если у вас возникнут вопросы, пожалуйста, свяжитесь с нами, ответив на это письмо.\n\n"
                 f"С уважением,\nКоманда SmartLocker HSE"
             )
@@ -325,3 +325,49 @@ def change_return_date(
             print(f"[Ошибка при отправке письма] {e}")
 
     return {"message": "Срок возврата обновлён и письмо отправлено"}
+
+
+@router.post("/req_change_return_date")
+def request_return_date_change(
+    data: ChangeReturnDateRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    request = session.exec(select(Request).where(Request.id == data.request_id)).first()
+    if not request:
+        raise HTTPException(status_code=404, detail="Заявка не найдена")
+
+    item = session.exec(select(Item).where(Item.id == request.item_id)).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Оборудование не найдено")
+
+    user_type = {
+        1: "студент",
+        2: "сотрудник",
+        3: "администратор",
+    }.get(current_user.user_type, "пользователь")
+
+    new_date_str = data.new_date.strftime("%d.%m.%Y")
+    created_str = request.created.strftime("%d.%m.%Y %H:%M")
+    current_return_str = request.planned_return_date.strftime("%d.%m.%Y")
+
+    subject = "Запрос на продление срока возврата"
+    body = (
+        f"Поступил запрос на продление:\n"
+        f"Заявка №{request.id} на оборудование \"{item.name}\".\n"
+        f"{user_type.title()} {current_user.name} ({current_user.email}) запрашивает продление до {new_date_str}.\n\n"
+        f"Заявка создана: {created_str}\n"
+        f"Текущая дата возврата: {current_return_str}\n\n"
+        f"Пожалуйста, подтвердите или отклоните продление в админ-панели приложения."
+    )
+
+    try:
+        send_notification_email(
+            to_email="smartlocker@edu.hse.ru",  # можно заменить на общую почту
+            subject=subject,
+            body=body,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка при отправке письма: {str(e)}")
+
+    return {"message": "Запрос на продление отправлен"}
