@@ -363,7 +363,7 @@ def request_return_date_change(
 
     try:
         send_notification_email(
-            to_email="smartlocker@edu.hse.ru",  # можно заменить на общую почту
+            to_email="noreply-smartlocker@yandex.ru",
             subject=subject,
             body=body,
         )
