@@ -59,10 +59,8 @@ def create_request(data: RequestCreate, current_user: User = Depends(get_current
                 hour=18, minute=0, second=0, microsecond=0
             )
 
-        if item.access_level == 1:
-            item.status = 2
-        else:
-            item.status = 4
+
+        item.status = 4
         item.available = False
 
         request = Request(
@@ -182,7 +180,7 @@ def update_request_status(
     request.status = data.status
 
     if data.status == 3 and item:
-        item.status = 2  # Выдан
+        item.status = 4
         item.available = False
         session.add(item)
 
