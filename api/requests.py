@@ -19,6 +19,17 @@ class RequestCreate(BaseModel):
     planned_return_date: datetime
 
 
+class StatusUpdateData(BaseModel):
+    request_id: int
+    status: int
+    reason: Optional[str] = None
+
+
+class ChangeReturnDateRequest(BaseModel):
+    request_id: int
+    new_date: datetime
+
+
 @router.post("/", response_model=dict)
 def create_request(data: RequestCreate, current_user: User = Depends(get_current_user)):
     with Session(engine) as session:
@@ -114,12 +125,6 @@ def get_all_requests(current_user: User = Depends(get_current_user), session: Se
     requests = session.exec(statement).all()
 
     return requests
-
-
-class StatusUpdateData(BaseModel):
-    request_id: int
-    status: int
-    reason: Optional[str] = None
 
 
 @router.post("/update-status")
@@ -276,3 +281,47 @@ def get_archived_requests(current_user: User = Depends(get_current_user)):
                     '%Y-%m-%d') if req.planned_return_date else None,
             })
         return result
+
+
+@router.post("/change_return_date")
+def change_return_date(
+    data: ChangeReturnDateRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.user_type != 3:
+        raise HTTPException(status_code=403, detail="Только администраторы могут изменять сроки возврата")
+
+    request = session.exec(select(Request).where(Request.id == data.request_id)).first()
+    if not request:
+        raise HTTPException(status_code=404, detail="Заявка не найдена")
+
+    user = session.exec(select(User).where(User.id == request.user)).first()
+    item = session.exec(select(Item).where(Item.id == request.item_id)).first()
+    if not user or not item:
+        raise HTTPException(status_code=404, detail="Пользователь или оборудование не найдены")
+
+    request.planned_return_date = data.new_date.replace(hour=18, minute=0, second=0, microsecond=0)
+    session.add(request)
+    session.commit()
+
+    # Письмо пользователю
+    if user.email:
+        try:
+            formatted_date = request.planned_return_date.strftime("%d.%m.%Y")
+            body = (
+                f"Здравствуйте, {user.name or 'пользователь'}!\n\n"
+                f"Срок возврата оборудования \"{item.name}\" по вашей заявке был изменён администратором.\n\n"
+                f"Новая дата возврата: {formatted_date} до 18:00.\n\n"
+                f"Если у вас возникнут вопросы, пожалуйста, свяжитесь с нами, ответив на это письмо.\n\n"
+                f"С уважением,\nКоманда SmartLocker HSE"
+            )
+            send_notification_email(
+                to_email=user.email,
+                subject="Изменение срока возврата оборудования",
+                body=body,
+            )
+        except Exception as e:
+            print(f"[Ошибка при отправке письма] {e}")
+
+    return {"message": "Срок возврата обновлён и письмо отправлено"}
