@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, status, requests, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from fastapi.responses import RedirectResponse, HTMLResponse
+from fastapi.responses import RedirectResponse, HTMLResponse, JSONResponse
 from pydantic import BaseModel, EmailStr
 from sqlmodel import Session, select
 from models import User, RegistrationCode
@@ -27,7 +27,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
 
 CLIENT_ID = "19230-prj"
 CLIENT_SECRET = os.getenv("HSE_CLIENT_SECRET")  # безопасно хранить в .env
-REDIRECT_URI = "https://hsesmartlocker.ru/auth/token"
+REDIRECT_URI = "smartlocker://auth/callback"
 TOKEN_URL = "https://profile.miem.hse.ru/auth/realms/MIEM/protocol/openid-connect/token"
 USERINFO_URL = "https://profile.miem.hse.ru/auth/realms/MIEM/protocol/openid-connect/userinfo"
 
@@ -105,6 +105,34 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
     user = authenticate_user(form_data.username, form_data.password)
     access_token = create_access_token(data={"sub": user.email})
     return {"access_token": access_token, "token_type": "bearer"}
+
+
+@router.post("/exchange")
+async def exchange_code(request: Request):
+    data = await request.json()
+    code = data.get("code")
+
+    if not code:
+        raise HTTPException(status_code=400, detail="Missing 'code'")
+
+    payload = {
+        "grant_type": "authorization_code",
+        "client_id": CLIENT_ID,
+        "code": code,
+        "redirect_uri": REDIRECT_URI,
+    }
+
+    if CLIENT_SECRET:
+        payload["client_secret"] = CLIENT_SECRET
+
+    async with httpx.AsyncClient() as client:
+        response = await client.post(TOKEN_URL, data=payload)
+
+    if response.status_code != 200:
+        raise HTTPException(status_code=response.status_code, detail=response.text)
+
+    token_data = response.json()
+    return JSONResponse(content={"access_token": token_data.get("access_token")})
 
 
 # @router.get("/token")
