@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from api import users, requests_routes, items, auth, support, cells
+from api import users, requests, items, auth, support, cells
 
 
 app = FastAPI(
@@ -9,7 +9,7 @@ app = FastAPI(
 )
 
 app.include_router(users.router)
-app.include_router(requests_routes.router)
+app.include_router(requests.router)
 app.include_router(items.router)
 app.include_router(auth.router)
 app.include_router(support.router)
