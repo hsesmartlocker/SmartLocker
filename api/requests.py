@@ -385,3 +385,76 @@ def request_return_date_change(
         raise HTTPException(status_code=500, detail=f"Ошибка при отправке письма: {str(e)}")
 
     return {"message": "Запрос на продление отправлен"}
+
+
+class PostamatActionRequest(BaseModel):
+    code: str
+    card_id: str
+
+
+@router.post("/pickup")
+def pickup_equipment(
+        data: PostamatActionRequest,
+        session: Session = Depends(get_session)
+):
+    request = session.exec(
+        select(Request).where(Request.postamat_code == data.code)
+    ).first()
+
+    if not request:
+        raise HTTPException(status_code=404, detail="Заявка по коду не найдена")
+
+    user = session.get(User, request.user)
+    if not user or user.card_id != data.card_id:
+        raise HTTPException(status_code=403, detail="Карта не принадлежит пользователю")
+
+    if request.status != 3:
+        raise HTTPException(status_code=400, detail="Заявка не в статусе 'одобрено' для выдачи")
+
+    request.status = 4
+    session.add(request)
+    session.commit()
+
+    return {"message": "Оборудование выдано успешно"}
+
+
+@router.post("/return")
+def return_equipment(
+        data: PostamatActionRequest,
+        session: Session = Depends(get_session)
+):
+    request = session.exec(
+        select(Request).where(Request.postamat_code == data.code)
+    ).first()
+
+    if not request:
+        raise HTTPException(status_code=404, detail="Заявка по коду не найдена")
+
+    user = session.get(User, request.user)
+    if not user or user.card_id != data.card_id:
+        raise HTTPException(status_code=403, detail="Карта не принадлежит пользователю")
+
+    if request.status != 4:
+        raise HTTPException(status_code=400, detail="Заявка не в статусе 'выдано' для возврата")
+
+    item = session.get(Item, request.item_id)
+    if item:
+        item.available = True
+        item.status = 1
+        session.add(item)
+
+    archived = ArchivedRequest(
+        user=request.user,
+        item_id=request.item_id,
+        created=request.created,
+        planned_return_date=request.planned_return_date,
+        actual_return_date=datetime.utcnow(),
+        comment=request.comment,
+        status=6
+    )
+
+    session.add(archived)
+    session.delete(request)
+    session.commit()
+
+    return {"message": "Оборудование успешно возвращено и заявка перенесена в архив"}
