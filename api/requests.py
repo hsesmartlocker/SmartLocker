@@ -30,6 +30,11 @@ class ChangeReturnDateRequest(BaseModel):
     new_date: datetime
 
 
+class StatusUpdateRequest(BaseModel):
+    request_id: int
+    new_status: int
+
+
 @router.post("/", response_model=dict)
 def create_request(data: RequestCreate, current_user: User = Depends(get_current_user)):
     with Session(engine) as session:
@@ -204,6 +209,20 @@ def update_request_status(
             print(f"[Ошибка при отправке письма] {e}")
 
     return {"message": "Статус заявки обновлён"}
+
+
+@router.post("/requests/auto_update_status")
+def auto_update_status(data: StatusUpdateRequest, db: Session = Depends(get_session)):
+    request_id = data.request_id
+    new_status = data.new_status
+
+    request = db.query(Request).filter(Request.id == request_id).first()
+    if not request:
+        raise HTTPException(status_code=404, detail="Заявка не найдена")
+
+    request.status = new_status
+    db.commit()
+    return {"message": "Статус обновлён автоматически"}
 
 
 @router.post("/{request_id}/generate-code")

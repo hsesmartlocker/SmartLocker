@@ -53,7 +53,7 @@ def fetch_item_name(item_id, token):
 
 def update_request_status(request_id, new_status, token):
     res = requests.post(
-        f"{BASE_URL}/requests/update_status",
+        f"{BASE_URL}/requests/auto_update_status",
         json={"request_id": request_id, "new_status": new_status},
         headers={
             "Authorization": f"Bearer {token}",
@@ -74,6 +74,8 @@ def main():
         return_raw = req.get("planned_return_date")
         if not return_raw:
             continue
+
+        print(return_raw)
 
         try:
             return_dt = datetime.fromisoformat(return_raw)
