@@ -433,7 +433,7 @@ def return_equipment(code: str, card_id: str, session: Session = Depends(get_ses
 
     archived = ArchivedRequest.from_orm(request)
     archived.status = 6
-    archived.actual_return_date = datetime.utcnow()
+    archived.return_date = datetime.utcnow()
     session.add(archived)
 
     item = session.get(Item, request.item_id)
