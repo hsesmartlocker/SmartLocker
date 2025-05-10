@@ -1,7 +1,6 @@
 from fastapi import FastAPI
 from api import users, requests, items, auth, support, cells
 
-
 app = FastAPI(
     title="SmartLocker API",
     description="API для мобильного приложения бронирования и выдачи оборудования",

@@ -1,11 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, Body
+from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 from models import Request, Item, ItemStatus, Cell
 from database import engine, get_session
 from api.auth import get_current_user
 from typing import List
 from pydantic import BaseModel
-from utils.email_sender import send_admin_request_email
 
 router = APIRouter(prefix="/items", tags=["Items"])
 
@@ -55,7 +54,6 @@ def delete_item(data: dict, db: Session = Depends(get_session)):
     if not item:
         raise HTTPException(status_code=404, detail="Оборудование не найдено")
 
-    # Активные статусы:
     active_status_ids = [1, 3, 4, 5, 7]
 
     active_request = (
@@ -122,7 +120,6 @@ def change_cell(data: dict, db: Session = Depends(get_session)):
         if old_cell:
             old_cell.is_free = True
 
-    # Назначаем новую ячейку
     item.cell = new_cell_id
     new_cell.is_free = False
 
@@ -148,7 +145,6 @@ def create_item(data: dict, db: Session = Depends(get_session)):
     new_item = Item(**data)
     db.add(new_item)
 
-    # если предмет кладем в ячейку, то сразу ее занимаем
     if cell_id is not None:
         cell.is_free = False
 

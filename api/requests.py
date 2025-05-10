@@ -59,7 +59,6 @@ def create_request(data: RequestCreate, current_user: User = Depends(get_current
                 hour=18, minute=0, second=0, microsecond=0
             )
 
-
         item.status = 4
         item.available = False
 
@@ -237,7 +236,6 @@ def cancel_request(request_id: int, current_user: User = Depends(get_current_use
             item.status = 1
             session.add(item)
 
-        # Статус "Отменена"
         status = session.exec(
             select(RequestStatus).where(RequestStatus.name == 'Отменена')
         ).first()
@@ -283,9 +281,9 @@ def get_archived_requests(current_user: User = Depends(get_current_user)):
 
 @router.post("/change_return_date")
 def change_return_date(
-    data: ChangeReturnDateRequest,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user)
+        data: ChangeReturnDateRequest,
+        session: Session = Depends(get_session),
+        current_user: User = Depends(get_current_user)
 ):
     if current_user.user_type != 3:
         raise HTTPException(status_code=403, detail="Только администраторы могут изменять сроки возврата")
@@ -303,7 +301,6 @@ def change_return_date(
     session.add(request)
     session.commit()
 
-    # Письмо пользователю
     if user.email:
         try:
             formatted_date = request.planned_return_date.strftime("%d.%m.%Y")
@@ -327,9 +324,9 @@ def change_return_date(
 
 @router.post("/req_change_return_date")
 def request_return_date_change(
-    data: ChangeReturnDateRequest,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user)
+        data: ChangeReturnDateRequest,
+        session: Session = Depends(get_session),
+        current_user: User = Depends(get_current_user)
 ):
     request = session.exec(select(Request).where(Request.id == data.request_id)).first()
     if not request:

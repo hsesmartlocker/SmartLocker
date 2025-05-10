@@ -1,8 +1,9 @@
 import smtplib
 from email.mime.text import MIMEText
+import os
 
-EMAIL_FROM = "noreply-smartlocker@yandex.ru"
-EMAIL_PASSWORD = "rxfjyyycrgesjcus"
+EMAIL_FROM = os.getenv("EMAIL_FROM")
+EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 
 
 def send_confirmation_email(to_email: str, code: str):
@@ -76,9 +77,6 @@ def send_temporary_password_email(to_email: str, new_password: str):
 
 
 def send_notification_email(to_email: str, subject: str, body: str):
-    """
-    Универсальная функция для отправки уведомлений пользователю.
-    """
     msg = MIMEText(body)
     msg["Subject"] = subject
     msg["From"] = EMAIL_FROM

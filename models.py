@@ -74,12 +74,14 @@ class CellLocation(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str  # Пример: "слева", "справа-снизу", "по центру"
 
+
 # Таблица ячеек хранения
 class Cell(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     size: str  # Значения: 'S', 'M', 'L'
     location_id: int = Field(sa_column=Column(Integer, ForeignKey("celllocation.id", ondelete="CASCADE")))
     is_free: bool = Field(default=True)
+
 
 # Обновляем модель Item
 class Item(SQLModel, table=True):

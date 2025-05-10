@@ -8,12 +8,14 @@ from pydantic import BaseModel, EmailStr
 class SupportRequest(BaseModel):
     message: str
 
+
 router = APIRouter(prefix="/support", tags=["Support"])
+
 
 @router.post("", response_model=dict)
 def send_support_request(
-    support_data: SupportRequest,
-    current_user: User = Depends(get_current_user)
+        support_data: SupportRequest,
+        current_user: User = Depends(get_current_user)
 ):
     message = support_data.message
     user_email = current_user.email
@@ -35,6 +37,7 @@ class AnonymousSupportRequest(BaseModel):
     name: str
     email: EmailStr
     message: str
+
 
 @router.post("/anonymous", response_model=dict)
 def send_anonymous_support_request(data: AnonymousSupportRequest):

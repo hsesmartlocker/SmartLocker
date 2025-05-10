@@ -1,6 +1,6 @@
-from fastapi import APIRouter, HTTPException, Depends, status, requests, Request
+from fastapi import APIRouter, HTTPException, Depends
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from fastapi.responses import RedirectResponse, HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, EmailStr
 from sqlmodel import Session, select
 from models import User, RegistrationCode
@@ -15,10 +15,8 @@ from passlib.context import CryptContext
 import httpx
 import os
 
-
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
-# Конфигурации
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 SECRET_KEY = "smartlocker-secret-key"
 ALGORITHM = "HS256"
@@ -26,7 +24,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
 
 CLIENT_ID = "19230-prj"
-CLIENT_SECRET = os.getenv("HSE_CLIENT_SECRET")  # безопасно хранить в .env
+CLIENT_SECRET = os.getenv("HSE_CLIENT_SECRET")
 REDIRECT_URI = "smartlocker://auth/callback"
 TOKEN_URL = "https://profile.miem.hse.ru/auth/realms/MIEM/protocol/openid-connect/token"
 USERINFO_URL = "https://profile.miem.hse.ru/auth/realms/MIEM/protocol/openid-connect/userinfo"
@@ -109,7 +107,6 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
 
 @router.post("/exchange")
 def exchange_token(data: TokenRequest, session: Session = Depends(get_session)):
-    # 1. Получаем токен от HSE через authorization code
     try:
         token_response = httpx.post(
             TOKEN_URL,
@@ -129,7 +126,6 @@ def exchange_token(data: TokenRequest, session: Session = Depends(get_session)):
         print("[exchange error]", e)
         raise HTTPException(status_code=400, detail="Ошибка получения токена от HSE")
 
-    # 2. Получаем информацию о пользователе из HSE
     try:
         userinfo_res = httpx.get(
             USERINFO_URL,
@@ -144,12 +140,10 @@ def exchange_token(data: TokenRequest, session: Session = Depends(get_session)):
 
         email_prefix = email.split("@")[0]
 
-        # 3. Пытаемся найти пользователя по префиксу email
         user = session.exec(
             select(User).where(User.email.startswith(email_prefix))
         ).first()
 
-        # 4. Если пользователь не найден, создаем
         if not user:
             user_type = 1 if email.endswith("@edu.hse.ru") else 2 if email.endswith("@hse.ru") else 0
             user = User(
@@ -163,7 +157,6 @@ def exchange_token(data: TokenRequest, session: Session = Depends(get_session)):
             session.add(user)
             session.commit()
 
-        # 5. Выдаем локальный токен
         access_token = create_access_token(data={"sub": user.email})
         return {"access_token": access_token}
 
@@ -198,10 +191,8 @@ def auth_done(token: Optional[str] = None):
 
       <script>
         const token = "{token}";
-        // Сохраняем в localStorage (если хочешь)
         localStorage.setItem("smartlocker_token", token);
 
-        // ✅ Перенаправляем обратно в приложение по deeplink
         window.location.href = "smartlocker://callback?token=" + token;
       </script>
     </body>
