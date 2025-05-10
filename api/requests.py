@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, select
 from models import Request, Item, RequestStatus, User
 from database import engine
@@ -419,37 +419,34 @@ def pickup_equipment(code: str, card_id: str, session: Session = Depends(get_ses
 
 
 @router.post("/return")
-def return_equipment(code: str, card_id: str, session: Session = Depends(get_session), request_obj: Request = None):
-    try:
-        request = session.exec(select(Request).where(Request.postamat_code == code)).first()
-        if not request:
-            raise HTTPException(status_code=404, detail="Заявка по коду не найдена")
+def return_equipment(
+    code: str = Query(...),
+    card_id: str = Query(...),
+    session: Session = Depends(get_session)
+):
+    request = session.exec(select(Request).where(Request.postamat_code == code)).first()
+    if not request:
+        raise HTTPException(status_code=404, detail="Заявка по коду не найдена")
 
-        if request.code_expiry:
-            expiry_utc = request.code_expiry.replace(tzinfo=None)
-            if datetime.utcnow() > expiry_utc:
-                raise HTTPException(status_code=400, detail="Срок действия кода истёк")
+    if request.code_expiry and datetime.utcnow() > request.code_expiry:
+        raise HTTPException(status_code=400, detail="Срок действия кода истёк")
 
-        user = session.get(User, request.user)
-        if not user or user.card_id != card_id:
-            raise HTTPException(status_code=403, detail="Пропуск не соответствует пользователю")
+    user = session.get(User, request.user)
+    if not user or user.card_id != card_id:
+        raise HTTPException(status_code=403, detail="Пропуск не соответствует пользователю")
 
-        archived = ArchivedRequest.from_orm(request)
-        archived.status = 6
-        archived.actual_return_date = datetime.utcnow()
+    archived = ArchivedRequest.from_orm(request)
+    archived.status = 6
+    archived.actual_return_date = datetime.utcnow()
+    session.add(archived)
 
-        item = session.get(Item, request.item_id)
-        if item:
-            item.status = 1
-            item.available = True
-            session.add(item)
+    item = session.get(Item, request.item_id)
+    if item:
+        item.status = 1
+        item.available = True
+        session.add(item)
 
-        session.add(archived)
-        session.delete(request)
-        session.commit()
+    session.delete(request)
+    session.commit()
 
-        return {"message": "Оборудование успешно возвращено"}
-
-    except Exception as e:
-        print(f"[Ошибка возврата оборудования] {e}")
-        raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера")
+    return {"message": "Оборудование успешно возвращено"}
