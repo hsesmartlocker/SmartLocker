@@ -124,7 +124,7 @@ def change_cell(data: dict, db: Session = Depends(get_session)):
     new_cell.is_free = False
 
     db.commit()
-    return {"success": True}
+    return {"message": "Ячейка успешно обновлена"}
 
 
 @router.post("/new")
