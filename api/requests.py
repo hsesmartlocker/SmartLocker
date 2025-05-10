@@ -211,7 +211,7 @@ def update_request_status(
     return {"message": "Статус заявки обновлён"}
 
 
-@router.post("/requests/auto_update_status")
+@router.post("/auto_update_status")
 def auto_update_status(data: StatusUpdateRequest, db: Session = Depends(get_session)):
     request_id = data.request_id
     new_status = data.new_status

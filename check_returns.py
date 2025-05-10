@@ -93,6 +93,7 @@ def main():
             continue
 
         if 0 < diff.total_seconds() <= 86400 and req["status"] != 5:
+            print(req['id'])
             if update_request_status(request_id, 5, token):
                 deadline = return_dt.replace(tzinfo=None).strftime("%H:%M %d.%m.%Y")
                 send_notification_email(
@@ -102,6 +103,7 @@ def main():
                 )
 
         elif diff.total_seconds() <= 0 and req["status"] != 7:
+            print(req['id'])
             if update_request_status(request_id, 7, token):
                 send_notification_email(
                     user_email,
