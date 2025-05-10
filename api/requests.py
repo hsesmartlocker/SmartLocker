@@ -434,7 +434,7 @@ def return_equipment(
     if not user or user.card_id != data.card_id:
         raise HTTPException(status_code=403, detail="Карта не принадлежит пользователю")
 
-    if request.status != 4:
+    if request.status not in (4, 5, 7):
         raise HTTPException(status_code=400, detail="Заявка не в статусе 'выдано' для возврата")
 
     item = session.get(Item, request.item_id)
