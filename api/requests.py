@@ -419,62 +419,30 @@ def pickup_equipment(code: str, card_id: str, session: Session = Depends(get_ses
 
 
 @router.post("/return")
-def return_equipment(
-    code: str = Query(...),
-    card_id: str = Query(...),
-    session: Session = Depends(get_session)
-):
-    print(f"[INFO] Получен запрос на возврат: code={code}, card_id={card_id}")
+def return_equipment(code: str, card_id: str, session: Session = Depends(get_session)):
+    request = session.exec(select(Request).where(Request.postamat_code == code)).first()
+    if not request:
+        raise HTTPException(status_code=404, detail="Заявка по коду не найдена")
 
-    try:
-        request = session.exec(select(Request).where(Request.postamat_code == code)).first()
-        if not request:
-            print("[ERROR] Заявка не найдена по коду")
-            raise HTTPException(status_code=404, detail="Заявка по коду не найдена")
+    if request.code_expiry and datetime.utcnow() > request.code_expiry:
+        raise HTTPException(status_code=400, detail="Срок действия кода истёк")
 
-        print(f"[INFO] Заявка найдена: ID={request.id}, user={request.user}")
+    user = session.get(User, request.user)
+    if not user or user.card_id != card_id:
+        raise HTTPException(status_code=403, detail="Пропуск не соответствует пользователю")
 
-        if request.code_expiry:
-            print(f"[INFO] Проверка срока действия кода: expiry={request.code_expiry}, now={datetime.utcnow()}")
-            if datetime.utcnow() > request.code_expiry:
-                print("[ERROR] Код просрочен")
-                raise HTTPException(status_code=400, detail="Срок действия кода истёк")
+    archived = ArchivedRequest.from_orm(request)
+    archived.status = 6
+    archived.actual_return_date = datetime.utcnow()
+    session.add(archived)
 
-        user = session.get(User, request.user)
-        if not user:
-            print("[ERROR] Пользователь не найден")
-            raise HTTPException(status_code=404, detail="Пользователь не найден")
+    item = session.get(Item, request.item_id)
+    if item:
+        item.status = 1
+        item.available = True
+        session.add(item)
 
-        print(f"[INFO] Проверка пропуска: введённый={card_id}, ожидаемый={user.card_id}")
-        if user.card_id != card_id:
-            print("[ERROR] Пропуск не соответствует")
-            raise HTTPException(status_code=403, detail="Пропуск не соответствует пользователю")
+    session.delete(request)
+    session.commit()
 
-        # Архивируем
-        print("[INFO] Архивируем заявку")
-        archived = ArchivedRequest.from_orm(request)
-        archived.status = 6
-        archived.actual_return_date = datetime.utcnow()
-        session.add(archived)
-
-        # Обновляем статус оборудования
-        item = session.get(Item, request.item_id)
-        if item:
-            print(f"[INFO] Освобождаем оборудование: item_id={item.id}")
-            item.status = 1
-            item.available = True
-            session.add(item)
-        else:
-            print(f"[WARN] Оборудование не найдено: item_id={request.item_id}")
-
-        # Удаляем активную заявку
-        print("[INFO] Удаляем активную заявку")
-        session.delete(request)
-
-        session.commit()
-        print("[SUCCESS] Оборудование успешно возвращено")
-        return {"message": "Оборудование успешно возвращено"}
-
-    except Exception as e:
-        print(f"[CRITICAL] Ошибка при обработке возврата: {e}")
-        raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера")
+    return {"message": "Оборудование успешно возвращено"}
