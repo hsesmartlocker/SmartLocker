@@ -5,14 +5,35 @@ from database import engine, get_session
 from api.auth import get_current_user
 from typing import List
 from pydantic import BaseModel
+from typing import Optional
 
 router = APIRouter(prefix="/items", tags=["Items"])
+
+
+class ItemRead(BaseModel):
+    id: int
+    name: str
+    cell: Optional[int]
+    available: bool
+    status: int
+    specifications: Optional[dict]
+
+    class Config:
+        orm_mode = True
 
 
 @router.get("/", response_model=List[Item])
 def get_all_items(current_user=Depends(get_current_user)):
     with Session(engine) as session:
         return session.exec(select(Item)).all()
+
+
+@router.get("/items/{item_id}", response_model=ItemRead)
+def get_item_by_id(item_id: int, db: Session = Depends(get_session)):
+    item = db.query(Item).filter(Item.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Оборудование не найдено")
+    return item
 
 
 @router.get("/available", response_model=List[Item])
