@@ -1,66 +1,81 @@
+import os
+import requests
 from datetime import datetime, timedelta
-from sqlmodel import Session, select
-from database import engine
-from models import Request, Item, User
-from utils.email_sender import send_notification_email
+from dotenv import load_dotenv
+
+load_dotenv()
+
+API_URL = "https://hsesmartlocker.ru"
+EMAIL_ADMIN = os.getenv("ADMIN_EMAIL")
+PASSWORD_ADMIN = os.getenv("ADMIN_PASSWORD")
+HEADERS = {}
 
 
-def check_deadlines():
-    now_msk = datetime.utcnow() + timedelta(hours=3)
+def login_as_admin():
+    global HEADERS
+    res = requests.post(
+        f"{API_URL}/auth/token",
+        data={"username": EMAIL_ADMIN, "password": PASSWORD_ADMIN},
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    if res.status_code != 200:
+        raise Exception("Не удалось авторизоваться как админ")
+    token = res.json()["access_token"]
+    HEADERS = {"Authorization": f"Bearer {token}"}
 
-    with Session(engine) as session:
-        requests = session.exec(select(Request).where(Request.status.in_([1, 3]))).all()
 
-        for req in requests:
-            if not req.planned_return_date:
-                continue
+def fetch_requests():
+    res = requests.get(f"{API_URL}/requests/all", headers=HEADERS)
+    if res.status_code != 200:
+        raise Exception("Не удалось получить список заявок")
+    return res.json()
 
-            planned_msk = req.planned_return_date + timedelta(hours=3)
-            time_left = planned_msk - now_msk
 
-            user = session.get(User, req.user_id)
-            item = session.get(Item, req.item_id)
+def notify_user(email, subject, message):
+    requests.post(
+        f"{API_URL}/email/send",
+        headers=HEADERS,
+        json={"email": email, "subject": subject, "message": message},
+    )
 
-            if not user or not item:
-                continue
 
-            item_name = item.name or "оборудование"
+def update_status(req_id, new_status):
+    requests.post(
+        f"{API_URL}/requests/update_status",
+        headers=HEADERS,
+        json={"request_id": req_id, "status": new_status},
+    )
 
-            # Менее 24 часов до возврата
-            if timedelta(hours=0) < time_left <= timedelta(hours=24) and req.status != 5:
-                req.status = 5
-                session.add(req)
-                send_notification_email(
-                    to=user.email,
-                    subject="Напоминание о возврате оборудования",
-                    body=(
-                        f"Уважаемый(ая) {user.name},\n\n"
-                        f"Напоминаем, что срок возврата оборудования — «{item_name}» — "
-                        f"истекает {planned_msk.strftime('%d.%m.%Y в %H:%M')} (по МСК).\n"
-                        "Пожалуйста, верните его до этого времени в постамат SmartLocker.\n\n"
-                        "С уважением,\nКоманда SmartLocker HSE"
-                    )
-                )
 
-            # Срок возврата уже прошёл
-            elif now_msk > planned_msk and req.status != 7:
-                req.status = 7
-                session.add(req)
-                send_notification_email(
-                    to=user.email,
-                    subject="Срок возврата оборудования истёк",
-                    body=(
-                        f"Уважаемый(ая) {user.name},\n\n"
-                        f"Срок возврата оборудования — «{item_name}» — истёк {planned_msk.strftime('%d.%m.%Y в %H:%M')} (по МСК).\n"
-                        "Просим срочно вернуть оборудование в постамат.\n"
-                        "Если у вас возникли сложности — ответьте на это письмо, и мы вам поможем.\n\n"
-                        "С уважением,\nКоманда SmartLocker HSE"
-                    )
-                )
+def main():
+    login_as_admin()
+    all_requests = fetch_requests()
+    now = datetime.utcnow() + timedelta(hours=3)  # по МСК
 
-        session.commit()
-        print("Проверка сроков завершена")
+    for req in all_requests:
+        status = req["status"]
+        return_raw = req.get("planned_return_date")
+        if not return_raw:
+            continue
+
+        return_time = datetime.fromisoformat(return_raw)
+        hours_left = (return_time - now).total_seconds() / 3600
+
+        if status in [1, 3] and 0 < hours_left < 24:
+            update_status(req["id"], 5)
+            notify_user(
+                req["user_email"],
+                "Напоминание о возврате оборудования",
+                f"Уважаемый пользователь! Напоминаем, что срок возврата оборудования ({req['item_name']}) истекает завтра в 21:00. Пожалуйста, верните его своевременно в постамат."
+            )
+        elif status in [1, 3] and hours_left <= 0:
+            update_status(req["id"], 7)
+            notify_user(
+                req["user_email"],
+                "Просрочен возврат оборудования",
+                f"Уважаемый пользователь! Срок возврата оборудования ({req['item_name']}) уже истёк. Срочно верните оборудование в постамат. Если у вас возникли затруднения — ответьте на это письмо или обратитесь в поддержку."
+            )
 
 
 if __name__ == "__main__":
-    check_deadlines()
+    main()
