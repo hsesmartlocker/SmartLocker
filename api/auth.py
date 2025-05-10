@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Body
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, EmailStr
@@ -15,12 +15,15 @@ from passlib.context import CryptContext
 import httpx
 import os
 
-router = APIRouter(prefix="/auth", tags=["Auth"])
+ACCESS_SECRET_KEY = os.getenv("SECRET_KEY")
+REFRESH_SECRET_KEY = os.getenv("REFRESH_SECRET_KEY")
+ALGORITHM = os.getenv("ALGORITHM", "HS256")
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 45))
+REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", 30))
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 SECRET_KEY = "smartlocker-secret-key"
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
+
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
 
 CLIENT_ID = "19230-prj"
@@ -28,6 +31,8 @@ CLIENT_SECRET = os.getenv("HSE_CLIENT_SECRET")
 REDIRECT_URI = "smartlocker://auth/callback"
 TOKEN_URL = "https://profile.miem.hse.ru/auth/realms/MIEM/protocol/openid-connect/token"
 USERINFO_URL = "https://profile.miem.hse.ru/auth/realms/MIEM/protocol/openid-connect/userinfo"
+
+router = APIRouter(prefix="/auth", tags=["Auth"])
 
 
 # ========================
@@ -88,11 +93,18 @@ def authenticate_user(email: str, password: str):
         return user
 
 
-def create_access_token(data: dict, expires_delta: timedelta = None):
+def create_access_token(data: dict):
     to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return jwt.encode(to_encode, ACCESS_SECRET_KEY, algorithm=ALGORITHM)
+
+
+def create_refresh_token(data: dict):
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, REFRESH_SECRET_KEY, algorithm=ALGORITHM)
 
 
 # ========================
@@ -102,7 +114,26 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
 def login(form_data: OAuth2PasswordRequestForm = Depends()):
     user = authenticate_user(form_data.username, form_data.password)
     access_token = create_access_token(data={"sub": user.email})
-    return {"access_token": access_token, "token_type": "bearer"}
+    return {
+        "access_token": create_access_token({"sub": user.email}),
+        "refresh_token": create_refresh_token({"sub": user.email}),
+        "token_type": "bearer"
+    }
+
+
+@router.post("/refresh")
+def refresh_token(refresh_token: str = Body(...)):
+    try:
+        payload = jwt.decode(refresh_token, REFRESH_SECRET_KEY, algorithms=[ALGORITHM])
+        email = payload.get("sub")
+        if not email:
+            raise HTTPException(status_code=401, detail="Invalid refresh token")
+
+        new_access_token = create_access_token({"sub": email})
+        return {"access_token": new_access_token, "token_type": "bearer"}
+
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
 
 
 @router.post("/exchange")
@@ -158,7 +189,11 @@ def exchange_token(data: TokenRequest, session: Session = Depends(get_session)):
             session.commit()
 
         access_token = create_access_token(data={"sub": user.email})
-        return {"access_token": access_token}
+        return {
+            "access_token": create_access_token({"sub": user.email}),
+            "refresh_token": create_refresh_token({"sub": user.email}),
+            "token_type": "bearer"
+        }
 
     except Exception as e:
         print("[userinfo error]", e)
