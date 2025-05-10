@@ -393,68 +393,56 @@ class PostamatActionRequest(BaseModel):
 
 
 @router.post("/pickup")
-def pickup_equipment(
-        data: PostamatActionRequest,
-        session: Session = Depends(get_session)
-):
-    request = session.exec(
-        select(Request).where(Request.postamat_code == data.code)
-    ).first()
-
+def pickup_equipment(code: str, card_id: str, session: Session = Depends(get_session)):
+    request = session.exec(select(Request).where(Request.postamat_code == code)).first()
     if not request:
         raise HTTPException(status_code=404, detail="Заявка по коду не найдена")
 
-    user = session.get(User, request.user)
-    if not user or user.card_id != data.card_id:
-        raise HTTPException(status_code=403, detail="Карта не принадлежит пользователю")
+    if request.code_expiry and datetime.utcnow() > request.code_expiry:
+        raise HTTPException(status_code=400, detail="Срок действия кода истёк")
 
-    if request.status != 3:
-        raise HTTPException(status_code=400, detail="Заявка не в статусе 'одобрено' для выдачи")
+    user = session.get(User, request.user)
+    if not user or user.card_id != card_id:
+        raise HTTPException(status_code=403, detail="Пропуск не соответствует пользователю")
 
     request.status = 4
     session.add(request)
-    session.commit()
-
-    return {"message": "Оборудование выдано успешно"}
-
-
-@router.post("/return")
-def return_equipment(
-        data: PostamatActionRequest,
-        session: Session = Depends(get_session)
-):
-    request = session.exec(
-        select(Request).where(Request.postamat_code == data.code)
-    ).first()
-
-    if not request:
-        raise HTTPException(status_code=404, detail="Заявка по коду не найдена")
-
-    user = session.get(User, request.user)
-    if not user or user.card_id != data.card_id:
-        raise HTTPException(status_code=403, detail="Карта не принадлежит пользователю")
-
-    if request.status not in (4, 5, 7):
-        raise HTTPException(status_code=400, detail="Заявка не в статусе 'выдано' для возврата")
 
     item = session.get(Item, request.item_id)
     if item:
-        item.available = True
-        item.status = 1
+        item.status = 2
+        item.available = False
         session.add(item)
 
-    archived = ArchivedRequest(
-        user=request.user,
-        item_id=request.item_id,
-        created=request.created,
-        planned_return_date=request.planned_return_date,
-        actual_return_date=datetime.utcnow(),
-        comment=request.comment,
-        status=6
-    )
+    session.commit()
+    return {"message": "Оборудование успешно выдано"}
+
+
+@router.post("/return")
+def return_equipment(code: str, card_id: str, session: Session = Depends(get_session)):
+    request = session.exec(select(Request).where(Request.postamat_code == code)).first()
+    if not request:
+        raise HTTPException(status_code=404, detail="Заявка по коду не найдена")
+
+    if request.code_expiry and datetime.utcnow() > request.code_expiry:
+        raise HTTPException(status_code=400, detail="Срок действия кода истёк")
+
+    user = session.get(User, request.user)
+    if not user or user.card_id != card_id:
+        raise HTTPException(status_code=403, detail="Пропуск не соответствует пользователю")
+
+    archived = ArchivedRequest.from_orm(request)
+    archived.status = 6
+    archived.actual_return_date = datetime.utcnow()
 
     session.add(archived)
     session.delete(request)
-    session.commit()
 
-    return {"message": "Оборудование успешно возвращено и заявка перенесена в архив"}
+    item = session.get(Item, request.item_id)
+    if item:
+        item.status = 1
+        item.available = True
+        session.add(item)
+
+    session.commit()
+    return {"message": "Оборудование успешно возвращено"}
