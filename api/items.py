@@ -28,14 +28,6 @@ def get_all_items(current_user=Depends(get_current_user)):
         return session.exec(select(Item)).all()
 
 
-@router.get("/{item_id}", response_model=ItemRead)
-def get_item_by_id(item_id: int, db: Session = Depends(get_session)):
-    item = db.query(Item).filter(Item.id == item_id).first()
-    if not item:
-        raise HTTPException(status_code=404, detail="Оборудование не найдено")
-    return item
-
-
 @router.get("/available", response_model=List[Item])
 def get_available_items(
         session: Session = Depends(get_session),
@@ -171,3 +163,11 @@ def create_item(data: dict, db: Session = Depends(get_session)):
     db.commit()
     db.refresh(new_item)
     return {"success": True, "item_id": new_item.id}
+
+
+@router.get("/{item_id}", response_model=ItemRead)
+def get_item_by_id(item_id: int, db: Session = Depends(get_session)):
+    item = db.query(Item).filter(Item.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Оборудование не найдено")
+    return item
