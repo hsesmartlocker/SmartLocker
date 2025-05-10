@@ -435,14 +435,14 @@ def return_equipment(code: str, card_id: str, session: Session = Depends(get_ses
     archived.status = 6
     archived.actual_return_date = datetime.utcnow()
 
-    session.add(archived)
-    session.delete(request)
-
     item = session.get(Item, request.item_id)
     if item:
         item.status = 1
         item.available = True
         session.add(item)
+
+    session.add(archived)
+    session.delete(request)
 
     session.commit()
     return {"message": "Оборудование успешно возвращено"}
