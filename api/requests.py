@@ -15,7 +15,7 @@ router = APIRouter(prefix="/requests", tags=["Requests"])
 
 class RequestCreate(BaseModel):
     item_id: int
-    comment: str = "Автоматическое бронирование"
+    comment: Optional[str] = None
     planned_return_date: datetime
 
 
@@ -72,7 +72,7 @@ def create_request(data: RequestCreate, current_user: User = Depends(get_current
             user=current_user.id,
             issued_by=current_user.id,
             created=datetime.utcnow(),
-            comment=data.comment,
+            comment=data.comment or "Автоматическое бронирование",
             planned_return_date=planned_return_date,
             item_id=data.item_id,
         )
