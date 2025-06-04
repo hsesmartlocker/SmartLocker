@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from api import users, requests_routes, items, auth, returning, nfc
+from api import users, requests, items, auth, support, cells
 
 app = FastAPI(
     title="SmartLocker API",
@@ -8,8 +8,8 @@ app = FastAPI(
 )
 
 app.include_router(users.router)
-app.include_router(requests_routes.router)
+app.include_router(requests.router)
 app.include_router(items.router)
 app.include_router(auth.router)
-app.include_router(returning.router)
-app.include_router(nfc.router)
+app.include_router(support.router)
+app.include_router(cells.router)
